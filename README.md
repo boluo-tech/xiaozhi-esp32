@@ -1,20 +1,52 @@
-# An MCP-based Chatbot | 一个基于 MCP 的聊天机器人
+# 小智开源音乐固件
 
 （中文 | [English](README_en.md) | [日本語](README_ja.md)）
 
 ## 视频
 
-👉 [人类：给 AI 装摄像头 vs AI：当场发现主人三天没洗头【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
+👉 [【开源】虾哥ai小智机器音乐播放器纯固件带歌词显示](https://www.bilibili.com/video/BV19oM4zqEiz)
 
-👉 [手工打造你的 AI 女友，新手入门教程【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
+👉 [【开源】虾哥小智音乐播放器纯固件](https://www.bilibili.com/video/BV1RqMEzEEp1)
 
 ## 介绍
 
-这是一个由虾哥开源的 ESP32 项目，以 MIT 许可证发布，允许任何人免费使用，或用于商业用途。
+这是一个由虾哥开源的[ESP32项目](https://github.com/78/xiaozhi-esp32)，以 MIT 许可证发布，允许任何人免费使用，或用于商业用途。
 
-我们希望通过这个项目，能够帮助大家了解 AI 硬件开发，将当下飞速发展的大语言模型应用到实际的硬件设备中。
+我们希望通过这个项目，让大家的小智都能播放歌曲。
 
-如果你有任何想法或建议，请随时提出 Issues 或加入 QQ 群：575180511
+如果你有任何想法或建议，请随时提出 Issues 或加入 QQ 群：826072986
+
+项目主要贡献者：空白泡泡糖果（B站UP），硅灵造物科技（B站UP）
+
+音乐服务器提供者（为爱发电）：蔓延科技
+
+### 💡注意事项
+
+#### 如果小智说找不到歌曲怎么办？
+进入[小智后台](https://xiaozhi.me/)，找到对应设备，修改角色配置
+- 选择 DeepSeekV3 大语言模型
+- 在人物介绍中填入
+  - 收到音乐相关的需求时，只使用 MPC tool `self.music.play_song` 工具，同时禁止使用 `search_music` 功能。
+
+
+#### 暂不支持的开发板
+- OTTO-Robot
+- ESP32C3芯片的开发板
+
+### 项目改动范围
+
+#### 新增
+- main\boards\common\esp32_music.cc
+- main\boards\common\esp32_music.h
+
+#### 修改
+- main\mcp_server.cc
+- main\boards\common\board.cc
+- main\boards\common\board.h
+- main\application.cc
+- main\application.h
+
+
 
 ### 基于 MCP 控制万物
 
@@ -24,18 +56,21 @@
 
 ### 已实现功能
 
-- Wi-Fi / ML307 Cat.1 4G
-- 离线语音唤醒 [ESP-SR](https://github.com/espressif/esp-sr)
-- 支持两种通信协议（[Websocket](docs/websocket.md) 或 MQTT+UDP）
-- 采用 OPUS 音频编解码
-- 基于流式 ASR + LLM + TTS 架构的语音交互
-- 声纹识别，识别当前说话人的身份 [3D Speaker](https://github.com/modelscope/3D-Speaker)
-- OLED / LCD 显示屏，支持表情显示
-- 电量显示与电源管理
-- 支持多语言（中文、英文、日文）
-- 支持 ESP32-C3、ESP32-S3、ESP32-P4 芯片平台
-- 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO 等）
-- 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
+- 🎭 **丰富的角色定制系统**：支持台湾女友、土豆子、English Tutor 等多种预设角色
+- 🎨 **个性化配置**：自定义助手昵称、对话语言、角色音色和性格介绍
+- 🎵 **智能音乐控制**：支持 `self.music.play_song` 工具进行音乐播放控制
+- 📡 Wi-Fi / ML307 Cat.1 4G 网络连接
+- 🗣️ 离线语音唤醒 [ESP-SR](https://github.com/espressif/esp-sr)
+- 🔗 支持两种通信协议（[Websocket](docs/websocket.md) 或 MQTT+UDP）
+- 🎧 采用 OPUS 音频编解码
+- 🤖 基于流式 ASR + LLM + TTS 架构的语音交互
+- 👤 声纹识别，识别当前说话人的身份 [3D Speaker](https://github.com/modelscope/3D-Speaker)
+- 📺 OLED / LCD 显示屏，支持表情显示
+- 🔋 电量显示与电源管理
+- 🌍 支持多语言（中文、英文、日文）
+- 💻 支持 ESP32-C3、ESP32-S3、ESP32-P4 芯片平台
+- 🏠 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO 等）
+- ☁️ 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
 
 ## 硬件
 
@@ -131,6 +166,18 @@
 
 如果你已经拥有一个的小智 AI 聊天机器人设备，并且已接入官方服务器，可以登录 [xiaozhi.me](https://xiaozhi.me) 控制台进行配置。
 
+### 🎭 角色配置指南
+
+在 [xiaozhi.me](https://xiaozhi.me) 控制台中，您可以：
+
+1. **选择角色模板**：从台湾女友、土豆子、English Tutor、好奇小男孩、汪汪队队长等预设角色中选择
+2. **设置助手昵称**：为您的 AI 伴侣起一个专属的名字（默认：小智）
+3. **配置对话语言**：支持普通话、英语、日语等多种语言
+4. **选择角色音色**：清澈小何等多种音色可供选择
+5. **自定义角色介绍**：详细描述角色的性格特点和背景设定
+
+💡 **特别功能**：收到音乐相关需求时，小智会优先使用 `self.music.play_song` 工具，确保音乐播放体验的流畅性。
+
 👉 [后台操作视频教程（旧版界面）](https://www.bilibili.com/video/BV1jUCUY2EKM/)
 
 ## 相关开源项目
@@ -148,13 +195,3 @@
 - [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) 百问科技提供的 Linux 客户端
 - [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技的蓝牙芯片固件
 - [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移远提供的 QuecPython 固件
-
-## Star History
-
-<a href="https://star-history.com/#78/xiaozhi-esp32&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
- </picture>
-</a>
