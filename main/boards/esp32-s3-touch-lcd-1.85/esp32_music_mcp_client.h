@@ -14,7 +14,7 @@ private:
     std::string device_mac_;  // 设备MAC地址
     
 public:
-    Esp32MusicMcpClient(const std::string& mcp_server_url = "http://192.168.1.100:8080");
+    Esp32MusicMcpClient(const std::string& mcp_server_url = "http://127.0.0.1:8080");
     ~Esp32MusicMcpClient() = default;
     
     // 重写父类方法，通过MCP服务器请求

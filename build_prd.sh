@@ -78,7 +78,7 @@ print_info "Bin files archived to releases/$(basename $RELEASE_DIR).zip"
 # ===================================
 # 步骤6: 烧录固件
 # ===================================
-#idf.py flash 
+idf.py flash 
 #python3 $IDF_PATH/components/esptool_py/esptool/esptool.py  \
 #  --chip esp32s3 -p /dev/tty.usbmodem-141101 -b 921600 \
 #  --before=default_reset --after=hard_reset write_flash \

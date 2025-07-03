@@ -443,7 +443,7 @@ private:
         ESP_LOGI(TAG, "初始化MCP音乐播放器");
         
         // 配置MCP服务器地址（可以从配置文件读取）
-        mcp_server_url_ = "http://192.168.1.100:8080";  // 默认MCP服务器地址
+        mcp_server_url_ = "http://192.168.1.12:8080";  // 修改为你的本地MCP服务器地址
         
         // 创建MCP客户端音乐播放器
         mcp_music_player_ = std::make_unique<Esp32MusicMcpClient>(mcp_server_url_);
@@ -470,6 +470,19 @@ public:
         InitializeIot();
         InitializeMcpMusicPlayer();
         GetBacklight()->RestoreBrightness();
+        
+        // 替换基类创建的音乐播放器为MCP客户端
+        if (mcp_music_player_) {
+            // 删除基类创建的音乐播放器
+            if (music_) {
+                delete music_;
+            }
+            // 将MCP客户端设置为当前音乐播放器
+            music_ = mcp_music_player_.get();
+            ESP_LOGI(TAG, "已替换基类音乐播放器为MCP客户端");
+        }
+        
+        ESP_LOGI(TAG, "CustomBoard初始化完成，MCP音乐播放器已就绪");
     }
 
     virtual AudioCodec* GetAudioCodec() override {
