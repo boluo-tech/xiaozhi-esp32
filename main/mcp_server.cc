@@ -123,6 +123,131 @@ void McpServer::AddCommonTools() {
                 ESP_LOGD(TAG, "Music details result: %s", download_result.c_str());
                 return true;
             });
+            
+        AddTool("self.music.play_playlist",
+            "播放播放列表。根据查询条件创建播放列表并开始播放。\n"
+            "参数:\n"
+            "  `query`: 播放列表查询条件，如艺术家名称、专辑名称等。\n"
+            "  `auto_next`: 是否启用自动播放下一首（可选，默认true）。\n"
+            "返回:\n"
+            "  播放列表创建和播放状态信息。",
+            PropertyList({
+                Property("query", kPropertyTypeString),
+                Property("auto_next", kPropertyTypeBoolean, false)
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                auto query = properties["query"].value<std::string>();
+                bool auto_next = properties.has("auto_next") ? 
+                    properties["auto_next"].value<bool>() : true;
+                
+                // 设置播放模式为列表播放
+                music->SetPlayMode(PlayMode::PLAYLIST);
+                music->EnableAutoNext(auto_next);
+                
+                // 创建播放列表
+                if (!music->CreatePlaylist(query)) {
+                    return "{\"success\": false, \"message\": \"创建播放列表失败\"}";
+                }
+                
+                // 开始播放第一首歌曲
+                auto playlist_info = music->GetPlaylistInfo();
+                if (playlist_info.has_value() && playlist_info->total_songs > 0) {
+                    if (!music->Download(music->GetCurrentSongName())) {
+                        return "{\"success\": false, \"message\": \"播放列表第一首歌曲播放失败\"}";
+                    }
+                    return "{\"success\": true, \"message\": \"播放列表创建成功，开始播放\", \"playlist_size\": " + 
+                           std::to_string(playlist_info->total_songs) + "}";
+                } else {
+                    return "{\"success\": false, \"message\": \"播放列表为空\"}";
+                }
+            });
+            
+        AddTool("self.music.enable_auto_next",
+            "启用或禁用自动播放下一首功能。\n"
+            "参数:\n"
+            "  `enable`: 是否启用自动播放下一首。\n"
+            "返回:\n"
+            "  设置结果。",
+            PropertyList({
+                Property("enable", kPropertyTypeBoolean)
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                bool enable = properties["enable"].value<bool>();
+                music->EnableAutoNext(enable);
+                return "{\"success\": true, \"message\": \"自动播放下一首" + 
+                       std::string(enable ? "已启用" : "已禁用") + "\"}";
+            });
+            
+        AddTool("self.music.set_play_mode",
+            "设置播放模式。\n"
+            "参数:\n"
+            "  `mode`: 播放模式，可选值：single（单曲播放）、auto_next（自动播放下一首）、playlist（列表播放）。\n"
+            "返回:\n"
+            "  设置结果。",
+            PropertyList({
+                Property("mode", kPropertyTypeString)
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                auto mode_str = properties["mode"].value<std::string>();
+                PlayMode mode;
+                
+                if (mode_str == "single") {
+                    mode = PlayMode::SINGLE;
+                } else if (mode_str == "auto_next") {
+                    mode = PlayMode::AUTO_NEXT;
+                } else if (mode_str == "playlist") {
+                    mode = PlayMode::PLAYLIST;
+                } else {
+                    return "{\"success\": false, \"message\": \"无效的播放模式\"}";
+                }
+                
+                music->SetPlayMode(mode);
+                return "{\"success\": true, \"message\": \"播放模式设置成功\"}";
+            });
+            
+        AddTool("self.music.play_next",
+            "播放下一首歌曲。\n"
+            "参数:\n"
+            "  无\n"
+            "返回:\n"
+            "  播放结果。",
+            PropertyList(),
+            [music](const PropertyList& properties) -> ReturnValue {
+                if (music->IsPlaylistMode() && music->IsPlaylistActive()) {
+                    if (music->PlayNext()) {
+                        return "{\"success\": true, \"message\": \"开始播放下一首歌曲\"}";
+                    } else {
+                        return "{\"success\": false, \"message\": \"播放下一首歌曲失败\"}";
+                    }
+                } else {
+                    // 对于非播放列表模式，使用自动播放下一首
+                    if (music->GetPlayMode() == PlayMode::AUTO_NEXT) {
+                        music->EnableAutoNext(true);
+                        return "{\"success\": true, \"message\": \"已启用自动播放下一首\"}";
+                    } else {
+                        return "{\"success\": false, \"message\": \"当前模式不支持播放下一首\"}";
+                    }
+                }
+            });
+            
+        AddTool("self.music.play_previous",
+            "播放上一首歌曲。\n"
+            "参数:\n"
+            "  无\n"
+            "返回:\n"
+            "  播放结果。",
+            PropertyList(),
+            [music](const PropertyList& properties) -> ReturnValue {
+                if (music->IsPlaylistMode() && music->IsPlaylistActive()) {
+                    if (music->PlayPrevious()) {
+                        return "{\"success\": true, \"message\": \"开始播放上一首歌曲\"}";
+                    } else {
+                        return "{\"success\": false, \"message\": \"播放上一首歌曲失败\"}";
+                    }
+                } else {
+                    return "{\"success\": false, \"message\": \"当前模式不支持播放上一首\"}";
+                }
+            });
     }
 
     // Restore the original tools list to the end of the tools list

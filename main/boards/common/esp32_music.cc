@@ -19,6 +19,11 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+// MP3解码器支持
+extern "C" {
+#include "mp3dec.h"
+}
+
 #define TAG "Esp32Music"
 
 // URL编码函数
@@ -80,13 +85,353 @@ static std::string buildUrlWithParams(const std::string& base_url, const std::st
     return result_url;
 }
 
+// ==================== PlaylistManager 实现 ====================
+
+PlaylistManager::PlaylistManager() 
+    : current_index_(0), is_looping_(false) {
+    ESP_LOGI(TAG, "PlaylistManager initialized");
+}
+
+PlaylistManager::~PlaylistManager() {
+    ESP_LOGI(TAG, "PlaylistManager destroyed");
+}
+
+bool PlaylistManager::CreatePlaylist(const std::string& query) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    ESP_LOGI(TAG, "Creating playlist for query: %s", query.c_str());
+    
+    // 清空当前播放列表
+    ClearPlaylist();
+    
+    // 设置播放列表基本信息
+    playlist_info_.query = query;
+    playlist_info_.playlist_id = "playlist_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    playlist_info_.created_at = std::chrono::steady_clock::now();
+    playlist_info_.is_looping = is_looping_;
+    
+    // 从服务器获取播放列表概览信息
+    auto& config = MusicServerConfig::GetInstance();
+    std::string overview_url = config.GetServerUrl() + "/playlist/overview?query=" + url_encode(query);
+    
+    auto http = Board::GetInstance().CreateHttp();
+    if (!http) {
+        ESP_LOGE(TAG, "Failed to create HTTP client for playlist overview");
+        return false;
+    }
+    
+    // 设置请求头
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
+    http->SetHeader("Accept", "application/json");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
+    
+    // 发送GET请求
+    if (!http->Open("GET", overview_url)) {
+        ESP_LOGE(TAG, "Failed to connect to playlist overview API");
+        delete http;
+        return false;
+    }
+    
+    // 检查响应状态码
+    int status_code = http->GetStatusCode();
+    if (status_code != 200) {
+        ESP_LOGE(TAG, "Playlist overview request failed with status code: %d", status_code);
+        http->Close();
+        delete http;
+        return false;
+    }
+    
+    // 读取响应数据
+    std::string response = http->ReadAll();
+    http->Close();
+    delete http;
+    
+    ESP_LOGI(TAG, "Playlist overview response: %s", response.c_str());
+    
+    // 解析播放列表概览
+    cJSON* response_json = cJSON_Parse(response.c_str());
+    if (!response_json) {
+        ESP_LOGE(TAG, "Failed to parse playlist overview response");
+        return false;
+    }
+    
+    cJSON* total_songs = cJSON_GetObjectItem(response_json, "total_songs");
+    if (cJSON_IsNumber(total_songs)) {
+        playlist_info_.total_songs = total_songs->valueint;
+        ESP_LOGI(TAG, "Playlist has %d total songs", playlist_info_.total_songs);
+    } else {
+        playlist_info_.total_songs = 0;
+        ESP_LOGW(TAG, "No total_songs found in response");
+    }
+    
+    cJSON_Delete(response_json);
+    
+    // 预分配歌曲信息数组（但不加载具体内容）
+    if (playlist_info_.total_songs > 0) {
+        loaded_songs_.resize(playlist_info_.total_songs);
+        ESP_LOGI(TAG, "Pre-allocated space for %d songs", playlist_info_.total_songs);
+    }
+    
+    current_index_ = 0;
+    ESP_LOGI(TAG, "Playlist created successfully");
+    return true;
+}
+
+bool PlaylistManager::LoadPlaylistSong(size_t index) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (!playlist_info_.total_songs || index >= playlist_info_.total_songs) {
+        ESP_LOGW(TAG, "Invalid song index: %d (total: %d)", index, playlist_info_.total_songs);
+        return false;
+    }
+    
+    // 检查是否已经加载
+    if (loaded_songs_[index].has_value()) {
+        ESP_LOGD(TAG, "Song %d already loaded", index);
+        return true;
+    }
+    
+    ESP_LOGI(TAG, "Loading song %d from server", index);
+    return LoadSongFromServer(index);
+}
+
+void PlaylistManager::ClearPlaylist() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    loaded_songs_.clear();
+    playlist_info_ = PlaylistInfo();
+    current_index_ = 0;
+    
+    ESP_LOGI(TAG, "Playlist cleared");
+}
+
+bool PlaylistManager::IsActive() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return playlist_info_.total_songs > 0;
+}
+
+size_t PlaylistManager::GetCurrentIndex() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return current_index_;
+}
+
+size_t PlaylistManager::GetTotalSongs() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return playlist_info_.total_songs;
+}
+
+std::string PlaylistManager::GetCurrentSongName() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (current_index_ >= loaded_songs_.size()) {
+        return "";
+    }
+    
+    auto& song_opt = loaded_songs_[current_index_];
+    if (song_opt.has_value()) {
+        return song_opt->song_name;
+    }
+    
+    return "";
+}
+
+std::optional<PlaylistInfo> PlaylistManager::GetPlaylistInfo() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (playlist_info_.total_songs == 0) {
+        return std::nullopt;
+    }
+    
+    return playlist_info_;
+}
+
+bool PlaylistManager::PlayNext() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (playlist_info_.total_songs == 0) {
+        ESP_LOGW(TAG, "Playlist is empty, cannot play next");
+        return false;
+    }
+    
+    size_t next_index = current_index_ + 1;
+    if (next_index >= playlist_info_.total_songs) {
+        if (is_looping_) {
+            next_index = 0;
+            ESP_LOGI(TAG, "Reached end of playlist, looping to beginning");
+        } else {
+            ESP_LOGI(TAG, "Reached end of playlist");
+            return false;
+        }
+    }
+    
+    current_index_ = next_index;
+    ESP_LOGI(TAG, "Playing next song: %d/%d", next_index + 1, playlist_info_.total_songs);
+    return true;
+}
+
+bool PlaylistManager::PlayPrevious() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (playlist_info_.total_songs == 0) {
+        ESP_LOGW(TAG, "Playlist is empty, cannot play previous");
+        return false;
+    }
+    
+    size_t prev_index;
+    if (current_index_ == 0) {
+        if (is_looping_) {
+            prev_index = playlist_info_.total_songs - 1;
+            ESP_LOGI(TAG, "At beginning of playlist, looping to end");
+        } else {
+            ESP_LOGI(TAG, "Already at beginning of playlist");
+            return false;
+        }
+    } else {
+        prev_index = current_index_ - 1;
+    }
+    
+    current_index_ = prev_index;
+    ESP_LOGI(TAG, "Playing previous song: %d/%d", prev_index + 1, playlist_info_.total_songs);
+    return true;
+}
+
+bool PlaylistManager::SetLooping(bool looping) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    is_looping_ = looping;
+    playlist_info_.is_looping = looping;
+    ESP_LOGI(TAG, "Playlist looping %s", looping ? "enabled" : "disabled");
+    return true;
+}
+
+bool PlaylistManager::IsLooping() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return is_looping_;
+}
+
+std::optional<PlaylistItem> PlaylistManager::GetSongInfo(size_t index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (index >= loaded_songs_.size()) {
+        return std::nullopt;
+    }
+    
+    return loaded_songs_[index];
+}
+
+bool PlaylistManager::HasSongInfo(size_t index) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (index >= loaded_songs_.size()) {
+        return false;
+    }
+    
+    return loaded_songs_[index].has_value();
+}
+
+bool PlaylistManager::LoadSongFromServer(size_t index) {
+    auto& config = MusicServerConfig::GetInstance();
+    std::string song_url = config.GetServerUrl() + "/playlist/song?index=" + std::to_string(index) + 
+                          "&query=" + url_encode(playlist_info_.query);
+    
+    auto http = Board::GetInstance().CreateHttp();
+    if (!http) {
+        ESP_LOGE(TAG, "Failed to create HTTP client for song request");
+        return false;
+    }
+    
+    // 设置请求头
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
+    http->SetHeader("Accept", "application/json");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
+    
+    // 发送GET请求
+    if (!http->Open("GET", song_url)) {
+        ESP_LOGE(TAG, "Failed to connect to song API");
+        delete http;
+        return false;
+    }
+    
+    // 检查响应状态码
+    int status_code = http->GetStatusCode();
+    if (status_code != 200) {
+        ESP_LOGE(TAG, "Song request failed with status code: %d", status_code);
+        http->Close();
+        delete http;
+        return false;
+    }
+    
+    // 读取响应数据
+    std::string response = http->ReadAll();
+    http->Close();
+    delete http;
+    
+    ESP_LOGD(TAG, "Song %d response: %s", index, response.c_str());
+    
+    // 解析歌曲信息
+    PlaylistItem item;
+    if (ParseSongResponse(response, item)) {
+        loaded_songs_[index] = item;
+        ESP_LOGI(TAG, "Loaded song %d: %s - %s", index, item.artist.c_str(), item.title.c_str());
+        return true;
+    }
+    
+    ESP_LOGE(TAG, "Failed to parse song %d response", index);
+    return false;
+}
+
+bool PlaylistManager::ParseSongResponse(const std::string& response, PlaylistItem& item) {
+    cJSON* response_json = cJSON_Parse(response.c_str());
+    if (!response_json) {
+        ESP_LOGE(TAG, "Failed to parse song response JSON");
+        return false;
+    }
+    
+    cJSON* song_name = cJSON_GetObjectItem(response_json, "song_name");
+    cJSON* artist = cJSON_GetObjectItem(response_json, "artist");
+    cJSON* title = cJSON_GetObjectItem(response_json, "title");
+    cJSON* audio_url = cJSON_GetObjectItem(response_json, "audio_url");
+    cJSON* lyric_url = cJSON_GetObjectItem(response_json, "lyric_url");
+    
+    if (cJSON_IsString(song_name)) {
+        item.song_name = song_name->valuestring;
+    }
+    if (cJSON_IsString(artist)) {
+        item.artist = artist->valuestring;
+    }
+    if (cJSON_IsString(title)) {
+        item.title = title->valuestring;
+    }
+    if (cJSON_IsString(audio_url)) {
+        item.audio_url = audio_url->valuestring;
+    }
+    if (cJSON_IsString(lyric_url)) {
+        item.lyric_url = lyric_url->valuestring;
+    }
+    
+    cJSON_Delete(response_json);
+    
+    // 验证必要字段
+    if (item.song_name.empty() || item.audio_url.empty()) {
+        ESP_LOGE(TAG, "Song response missing required fields");
+        return false;
+    }
+    
+    return true;
+}
+
+// ==================== Esp32Music 实现 ====================
+
 Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), current_song_name_(),
                          song_name_displayed_(false), current_lyric_url_(), lyrics_(), 
                          current_lyric_index_(-1), lyric_thread_(), is_lyric_running_(false),
                          is_playing_(false), is_downloading_(false), 
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
-                         mp3_decoder_initialized_(false) {
+                         mp3_decoder_initialized_(false), play_mode_(PlayMode::SINGLE), 
+                         auto_next_enabled_(false), playlist_manager_(std::make_unique<PlaylistManager>()),
+                         current_play_time_ms_(0), last_frame_time_ms_(0), total_frames_decoded_(0) {
     ESP_LOGI(TAG, "Music player initialized");
     
     // 验证音乐服务器配置
@@ -730,7 +1075,7 @@ void Esp32Music::PlayAudioStream() {
                     }
                 }
                 
-                chunk = audio_buffer_.front();
+                chunk = std::move(audio_buffer_.front());
                 audio_buffer_.pop();
                 buffer_size_ -= chunk.size;
                 
@@ -907,6 +1252,9 @@ void Esp32Music::PlayAudioStream() {
     // 不在这里禁用音频输出，避免干扰其他音频功能
     ESP_LOGI(TAG, "Audio stream playback finished, total played: %d bytes", total_played);
     
+    // 新增：播放结束时的回调处理
+    OnPlaybackFinished();
+    
     is_playing_ = false;
 }
 
@@ -915,7 +1263,7 @@ void Esp32Music::ClearAudioBuffer() {
     std::lock_guard<std::mutex> lock(buffer_mutex_);
     
     while (!audio_buffer_.empty()) {
-        AudioChunk chunk = audio_buffer_.front();
+        AudioChunk chunk = std::move(audio_buffer_.front());
         audio_buffer_.pop();
         if (chunk.data) {
             heap_caps_free(chunk.data);
@@ -1306,4 +1654,335 @@ void Esp32Music::UpdateLyricDisplay(int64_t current_time_ms) {
                     lyric_text.empty() ? "(no lyric)" : lyric_text.c_str());
         }
     }
+}
+
+// 新增：自动播放和列表播放方法实现
+
+bool Esp32Music::SetPlayMode(PlayMode mode) {
+    play_mode_ = mode;
+    ESP_LOGI(TAG, "Play mode set to: %d", static_cast<int>(mode));
+    return true;
+}
+
+PlayMode Esp32Music::GetPlayMode() const {
+    return play_mode_;
+}
+
+bool Esp32Music::EnableAutoNext(bool enable) {
+    auto_next_enabled_ = enable;
+    ESP_LOGI(TAG, "Auto next %s", enable ? "enabled" : "disabled");
+    return true;
+}
+
+bool Esp32Music::IsAutoNextEnabled() const {
+    return auto_next_enabled_.load();
+}
+
+// 播放列表功能实现（按需加载）
+bool Esp32Music::CreatePlaylist(const std::string& query) {
+    ESP_LOGI(TAG, "Creating playlist for query: %s", query.c_str());
+    
+    if (!playlist_manager_) {
+        ESP_LOGE(TAG, "Playlist manager not initialized");
+        return false;
+    }
+    
+    // 设置播放模式为列表播放
+    play_mode_ = PlayMode::PLAYLIST;
+    
+    // 创建播放列表
+    if (!playlist_manager_->CreatePlaylist(query)) {
+        ESP_LOGE(TAG, "Failed to create playlist");
+        return false;
+    }
+    
+    // 加载第一首歌曲并开始播放
+    if (playlist_manager_->GetTotalSongs() > 0) {
+        if (playlist_manager_->LoadPlaylistSong(0)) {
+            auto song_info = playlist_manager_->GetSongInfo(0);
+            if (song_info.has_value()) {
+                ESP_LOGI(TAG, "Starting playlist with: %s", song_info->song_name.c_str());
+                return Download(song_info->song_name);
+            }
+        }
+    }
+    
+    ESP_LOGW(TAG, "Playlist created but no songs to play");
+    return true;
+}
+
+bool Esp32Music::LoadPlaylistSong(size_t index) {
+    if (!playlist_manager_) {
+        ESP_LOGE(TAG, "Playlist manager not initialized");
+        return false;
+    }
+    
+    return playlist_manager_->LoadPlaylistSong(index);
+}
+
+bool Esp32Music::PlayNext() {
+    if (!playlist_manager_ || !playlist_manager_->IsActive()) {
+        ESP_LOGW(TAG, "No active playlist, cannot play next");
+        return false;
+    }
+    
+    // 切换到下一首
+    if (!playlist_manager_->PlayNext()) {
+        ESP_LOGW(TAG, "Failed to move to next song in playlist");
+        return false;
+    }
+    
+    // 加载并播放下一首歌曲
+    size_t next_index = playlist_manager_->GetCurrentIndex();
+    if (playlist_manager_->LoadPlaylistSong(next_index)) {
+        auto song_info = playlist_manager_->GetSongInfo(next_index);
+        if (song_info.has_value()) {
+            ESP_LOGI(TAG, "Playing next song: %s (%d/%d)", 
+                    song_info->song_name.c_str(), next_index + 1, playlist_manager_->GetTotalSongs());
+            return Download(song_info->song_name);
+        }
+    }
+    
+    ESP_LOGE(TAG, "Failed to load next song from playlist");
+    return false;
+}
+
+bool Esp32Music::PlayPrevious() {
+    if (!playlist_manager_ || !playlist_manager_->IsActive()) {
+        ESP_LOGW(TAG, "No active playlist, cannot play previous");
+        return false;
+    }
+    
+    // 切换到上一首
+    if (!playlist_manager_->PlayPrevious()) {
+        ESP_LOGW(TAG, "Failed to move to previous song in playlist");
+        return false;
+    }
+    
+    // 加载并播放上一首歌曲
+    size_t prev_index = playlist_manager_->GetCurrentIndex();
+    if (playlist_manager_->LoadPlaylistSong(prev_index)) {
+        auto song_info = playlist_manager_->GetSongInfo(prev_index);
+        if (song_info.has_value()) {
+            ESP_LOGI(TAG, "Playing previous song: %s (%d/%d)", 
+                    song_info->song_name.c_str(), prev_index + 1, playlist_manager_->GetTotalSongs());
+            return Download(song_info->song_name);
+        }
+    }
+    
+    ESP_LOGE(TAG, "Failed to load previous song from playlist");
+    return false;
+}
+
+bool Esp32Music::IsPlaylistMode() const {
+    return play_mode_ == PlayMode::PLAYLIST;
+}
+
+// 播放列表状态查询
+bool Esp32Music::IsPlaylistActive() const {
+    if (!playlist_manager_) {
+        return false;
+    }
+    return playlist_manager_->IsActive();
+}
+
+size_t Esp32Music::GetCurrentPlaylistIndex() const {
+    if (!playlist_manager_) {
+        return 0;
+    }
+    return playlist_manager_->GetCurrentIndex();
+}
+
+size_t Esp32Music::GetPlaylistTotalSongs() const {
+    if (!playlist_manager_) {
+        return 0;
+    }
+    return playlist_manager_->GetTotalSongs();
+}
+
+std::string Esp32Music::GetCurrentSongName() const {
+    if (!playlist_manager_ || !playlist_manager_->IsActive()) {
+        return current_song_name_;
+    }
+    return playlist_manager_->GetCurrentSongName();
+}
+
+std::optional<PlaylistInfo> Esp32Music::GetPlaylistInfo() const {
+    if (!playlist_manager_) {
+        return std::nullopt;
+    }
+    return playlist_manager_->GetPlaylistInfo();
+}
+
+// 播放列表控制
+bool Esp32Music::SetPlaylistLooping(bool looping) {
+    if (!playlist_manager_) {
+        ESP_LOGE(TAG, "Playlist manager not initialized");
+        return false;
+    }
+    return playlist_manager_->SetLooping(looping);
+}
+
+bool Esp32Music::IsPlaylistLooping() const {
+    if (!playlist_manager_) {
+        return false;
+    }
+    return playlist_manager_->IsLooping();
+}
+
+void Esp32Music::ClearPlaylist() {
+    if (playlist_manager_) {
+        playlist_manager_->ClearPlaylist();
+    }
+    ESP_LOGI(TAG, "Playlist cleared");
+}
+
+// 播放结束回调处理
+void Esp32Music::OnPlaybackFinished() {
+    ESP_LOGI(TAG, "Playback finished, current mode: %d, auto_next: %d", 
+            static_cast<int>(play_mode_), auto_next_enabled_.load());
+    
+    // 检查是否需要自动播放下一首
+    if (auto_next_enabled_.load()) {
+        if (play_mode_ == PlayMode::AUTO_NEXT) {
+            // 自动播放模式：请求下一首随机歌曲
+            ESP_LOGI(TAG, "Auto next mode: requesting next random song");
+            RequestNextSong();
+        } else if (play_mode_ == PlayMode::PLAYLIST && IsPlaylistActive()) {
+            // 列表播放模式：播放下一首
+            ESP_LOGI(TAG, "Playlist mode: playing next song in playlist");
+            PlayNext();
+        }
+    }
+}
+
+// 服务器请求方法
+bool Esp32Music::RequestNextSong() {
+    ESP_LOGI(TAG, "Requesting next song from server");
+    
+    // 构建请求下一首歌曲的URL
+    auto& config = MusicServerConfig::GetInstance();
+    std::string next_url = config.GetServerUrl() + "/next_song";
+    
+    auto http = Board::GetInstance().CreateHttp();
+    if (!http) {
+        ESP_LOGE(TAG, "Failed to create HTTP client for next song request");
+        return false;
+    }
+    
+    // 设置请求头
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
+    http->SetHeader("Accept", "application/json");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
+    
+    // 发送GET请求
+    if (!http->Open("GET", next_url)) {
+        ESP_LOGE(TAG, "Failed to connect to next song API");
+        delete http;
+        return false;
+    }
+    
+    // 检查响应状态码
+    int status_code = http->GetStatusCode();
+    if (status_code != 200) {
+        ESP_LOGE(TAG, "Next song request failed with status code: %d", status_code);
+        http->Close();
+        delete http;
+        return false;
+    }
+    
+    // 读取响应数据
+    std::string response = http->ReadAll();
+    http->Close();
+    delete http;
+    
+    ESP_LOGI(TAG, "Next song response: %s", response.c_str());
+    
+    // 解析响应并播放下一首歌曲
+    cJSON* response_json = cJSON_Parse(response.c_str());
+    if (response_json) {
+        cJSON* song_name = cJSON_GetObjectItem(response_json, "song_name");
+        if (cJSON_IsString(song_name) && song_name->valuestring) {
+            std::string next_song = song_name->valuestring;
+            cJSON_Delete(response_json);
+            
+            ESP_LOGI(TAG, "Next song: %s", next_song.c_str());
+            return Download(next_song);
+        }
+        cJSON_Delete(response_json);
+    }
+    
+    ESP_LOGE(TAG, "Failed to parse next song response");
+    return false;
+}
+
+bool Esp32Music::RequestPreviousSong() {
+    ESP_LOGI(TAG, "Requesting previous song from server");
+    
+    // 构建请求上一首歌曲的URL
+    auto& config = MusicServerConfig::GetInstance();
+    std::string prev_url = config.GetServerUrl() + "/previous_song";
+    
+    auto http = Board::GetInstance().CreateHttp();
+    if (!http) {
+        ESP_LOGE(TAG, "Failed to create HTTP client for previous song request");
+        return false;
+    }
+    
+    // 设置请求头
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
+    http->SetHeader("Accept", "application/json");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
+    
+    // 发送GET请求
+    if (!http->Open("GET", prev_url)) {
+        ESP_LOGE(TAG, "Failed to connect to previous song API");
+        delete http;
+        return false;
+    }
+    
+    // 检查响应状态码
+    int status_code = http->GetStatusCode();
+    if (status_code != 200) {
+        ESP_LOGE(TAG, "Previous song request failed with status code: %d", status_code);
+        http->Close();
+        delete http;
+        return false;
+    }
+    
+    // 读取响应数据
+    std::string response = http->ReadAll();
+    http->Close();
+    delete http;
+    
+    ESP_LOGI(TAG, "Previous song response: %s", response.c_str());
+    
+    // 解析响应并播放上一首歌曲
+    cJSON* response_json = cJSON_Parse(response.c_str());
+    if (response_json) {
+        cJSON* song_name = cJSON_GetObjectItem(response_json, "song_name");
+        if (cJSON_IsString(song_name) && song_name->valuestring) {
+            std::string prev_song = song_name->valuestring;
+            cJSON_Delete(response_json);
+            
+            ESP_LOGI(TAG, "Previous song: %s", prev_song.c_str());
+            return Download(prev_song);
+        }
+        cJSON_Delete(response_json);
+    }
+    
+    ESP_LOGE(TAG, "Failed to parse previous song response");
+    return false;
+}
+
+// 添加缺失的方法实现
+size_t Esp32Music::GetBufferSize() const {
+    std::lock_guard<std::mutex> lock(buffer_mutex_);
+    return buffer_size_;
+}
+
+bool Esp32Music::IsDownloading() const {
+    return is_downloading_.load();
 }
