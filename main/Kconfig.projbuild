@@ -422,4 +422,81 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+menu "Music Server Configuration"
+    config MUSIC_SERVER_ENABLED
+        bool "Enable Music Server"
+        default y
+        help
+            启用音乐服务器功能
+
+    config MUSIC_SERVER_URL
+        string "Music Server URL"
+        default "http://www.jsrc.top:5566"
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐服务器地址，格式: http://host:port
+
+    config MUSIC_SERVER_USER_AGENT
+        string "Music Server User Agent"
+        default "ESP32-Music-Player/1.0"
+        depends on MUSIC_SERVER_ENABLED
+        help
+            发送给音乐服务器的User-Agent
+
+    config MUSIC_SERVER_TIMEOUT_MS
+        int "Music Server Timeout (ms)"
+        default 10000
+        range 1000 60000
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐服务器请求超时时间（毫秒）
+
+    config MUSIC_SERVER_RETRY_COUNT
+        int "Music Server Retry Count"
+        default 3
+        range 0 10
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐服务器请求重试次数
+
+    config MUSIC_SERVER_RETRY_DELAY_MS
+        int "Music Server Retry Delay (ms)"
+        default 500
+        range 100 5000
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐服务器请求重试间隔（毫秒）
+
+    config MUSIC_SERVER_ENABLE_RANGE_REQUESTS
+        bool "Enable Range Requests (Resume Download)"
+        default y
+        depends on MUSIC_SERVER_ENABLED
+        help
+            启用HTTP Range请求，支持断点续传
+
+    config MUSIC_SERVER_CHUNK_SIZE
+        int "Music Download Chunk Size (bytes)"
+        default 4096
+        range 1024 16384
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐下载分块大小（字节）
+
+    config MUSIC_SERVER_MAX_BUFFER_SIZE
+        int "Music Max Buffer Size (KB)"
+        default 512
+        range 64 2048
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐播放最大缓冲区大小（KB）
+
+    config MUSIC_SERVER_MIN_BUFFER_SIZE
+        int "Music Min Buffer Size (KB)"
+        default 64
+        range 16 256
+        depends on MUSIC_SERVER_ENABLED
+        help
+            音乐播放最小缓冲区大小（KB）
+endmenu
+
 endmenu

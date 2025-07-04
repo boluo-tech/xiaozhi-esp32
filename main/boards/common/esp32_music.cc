@@ -5,6 +5,7 @@
 #include "application.h"
 #include "protocols/protocol.h"
 #include "display/display.h"
+#include "music_server_config.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
@@ -87,6 +88,13 @@ Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), curren
                          buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
                          mp3_decoder_initialized_(false) {
     ESP_LOGI(TAG, "Music player initialized");
+    
+    // 验证音乐服务器配置
+    auto& config = MusicServerConfig::GetInstance();
+    if (!config.IsValid()) {
+        ESP_LOGW(TAG, "Music server configuration is invalid, music playback may not work properly");
+    }
+    
     InitializeMp3Decoder();
 }
 
@@ -202,15 +210,25 @@ bool Esp32Music::Download(const std::string& song_name) {
     ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
     ESP_LOGI(TAG, "Starting to get music details for: %s", song_name.c_str());
     
+    // 获取音乐服务器配置
+    auto& config = MusicServerConfig::GetInstance();
+    if (!config.IsEnabled()) {
+        ESP_LOGE(TAG, "Music server is disabled");
+        return false;
+    }
+    
     // 清空之前的下载数据
     last_downloaded_data_.clear();
     
     // 保存歌名用于后续显示
     current_song_name_ = song_name;
     
-    // 第一步：请求stream_pcm接口获取音频信息
-    std::string api_url = "http://www.jsrc.top:5566/stream_pcm";
-    std::string full_url = api_url + "?song=" + url_encode(song_name);
+    // 构建搜索URL
+    std::string full_url = config.BuildSearchUrl(song_name);
+    if (full_url.empty()) {
+        ESP_LOGE(TAG, "Failed to build search URL");
+        return false;
+    }
     
     ESP_LOGI(TAG, "Request URL: %s", full_url.c_str());
     
@@ -218,8 +236,10 @@ bool Esp32Music::Download(const std::string& song_name) {
     auto http = Board::GetInstance().CreateHttp();
     
     // 设置请求头
-    http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
     http->SetHeader("Accept", "application/json");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
     
     // 打开GET连接
     if (!http->Open("GET", full_url)) {
@@ -263,19 +283,12 @@ bool Esp32Music::Download(const std::string& song_name) {
             if (cJSON_IsString(audio_url) && audio_url->valuestring && strlen(audio_url->valuestring) > 0) {
                 ESP_LOGI(TAG, "Audio URL path: %s", audio_url->valuestring);
                 
-                // 第二步：拼接完整的音频下载URL，确保对audio_url进行URL编码
-                std::string base_url = "http://www.jsrc.top:5566";
-                std::string audio_path = audio_url->valuestring;
-                
-                // 使用统一的URL构建功能
-                if (audio_path.find("?") != std::string::npos) {
-                    size_t query_pos = audio_path.find("?");
-                    std::string path = audio_path.substr(0, query_pos);
-                    std::string query = audio_path.substr(query_pos + 1);
-                    
-                    current_music_url_ = buildUrlWithParams(base_url, path, query);
-                } else {
-                    current_music_url_ = base_url + audio_path;
+                // 构建完整的音频下载URL
+                current_music_url_ = config.BuildAudioUrl(audio_url->valuestring);
+                if (current_music_url_.empty()) {
+                    ESP_LOGE(TAG, "Failed to build audio URL");
+                    cJSON_Delete(response_json);
+                    return false;
                 }
                 
                 ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
@@ -285,33 +298,27 @@ bool Esp32Music::Download(const std::string& song_name) {
                 
                 // 处理歌词URL
                 if (cJSON_IsString(lyric_url) && lyric_url->valuestring && strlen(lyric_url->valuestring) > 0) {
-                    // 拼接完整的歌词下载URL，使用相同的URL构建逻辑
-                    std::string lyric_path = lyric_url->valuestring;
-                    if (lyric_path.find("?") != std::string::npos) {
-                        size_t query_pos = lyric_path.find("?");
-                        std::string path = lyric_path.substr(0, query_pos);
-                        std::string query = lyric_path.substr(query_pos + 1);
+                    // 构建完整的歌词下载URL
+                    current_lyric_url_ = config.BuildLyricUrl(lyric_url->valuestring);
+                    if (!current_lyric_url_.empty()) {
+                        ESP_LOGI(TAG, "Loading lyrics for: %s", song_name.c_str());
                         
-                        current_lyric_url_ = buildUrlWithParams(base_url, path, query);
-                    } else {
-                        current_lyric_url_ = base_url + lyric_path;
-                    }
-                    
-                    ESP_LOGI(TAG, "Loading lyrics for: %s", song_name.c_str());
-                    
-                    // 启动歌词下载和显示
-                    if (is_lyric_running_) {
-                        is_lyric_running_ = false;
-                        if (lyric_thread_.joinable()) {
-                            lyric_thread_.join();
+                        // 启动歌词下载和显示
+                        if (is_lyric_running_) {
+                            is_lyric_running_ = false;
+                            if (lyric_thread_.joinable()) {
+                                lyric_thread_.join();
+                            }
                         }
+                        
+                        is_lyric_running_ = true;
+                        current_lyric_index_ = -1;
+                        lyrics_.clear();
+                        
+                        lyric_thread_ = std::thread(&Esp32Music::LyricDisplayThread, this);
+                    } else {
+                        ESP_LOGW(TAG, "Failed to build lyric URL");
                     }
-                    
-                    is_lyric_running_ = true;
-                    current_lyric_index_ = -1;
-                    lyrics_.clear();
-                    
-                    lyric_thread_ = std::thread(&Esp32Music::LyricDisplayThread, this);
                 } else {
                     ESP_LOGW(TAG, "No lyric URL found for this song");
                 }
@@ -486,6 +493,9 @@ bool Esp32Music::StopStreaming() {
 void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     ESP_LOGD(TAG, "Starting audio stream download from: %s", music_url.c_str());
     
+    // 获取音乐服务器配置
+    auto& config = MusicServerConfig::GetInstance();
+    
     // 验证URL有效性
     if (music_url.empty() || music_url.find("http") != 0) {
         ESP_LOGE(TAG, "Invalid URL format: %s", music_url.c_str());
@@ -496,9 +506,16 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     auto http = Board::GetInstance().CreateHttp();
     
     // 设置请求头
-    http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
     http->SetHeader("Accept", "*/*");
-    http->SetHeader("Range", "bytes=0-");  // 支持断点续传
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
+    
+    // 根据配置决定是否启用Range请求
+    if (config.IsRangeRequestsEnabled()) {
+        http->SetHeader("Range", "bytes=0-");  // 支持断点续传
+        ESP_LOGD(TAG, "Range requests enabled");
+    }
     
     if (!http->Open("GET", music_url)) {
         ESP_LOGE(TAG, "Failed to connect to music stream URL");
@@ -516,8 +533,8 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     
     ESP_LOGI(TAG, "Started downloading audio stream, status: %d", status_code);
     
-    // 分块读取音频数据
-    const size_t chunk_size = 4096;  // 4KB每块
+    // 使用配置的分块大小
+    const size_t chunk_size = config.GetChunkSize();
     char buffer[chunk_size];
     size_t total_downloaded = 0;
     
@@ -573,10 +590,12 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
         }
         memcpy(chunk_data, buffer, bytes_read);
         
-        // 等待缓冲区有空间
+        // 等待缓冲区有空间，使用配置的缓冲区大小
         {
             std::unique_lock<std::mutex> lock(buffer_mutex_);
-            buffer_cv_.wait(lock, [this] { return buffer_size_ < MAX_BUFFER_SIZE || !is_downloading_; });
+            buffer_cv_.wait(lock, [this, &config] { 
+                return buffer_size_ < config.GetMaxBufferSize() || !is_downloading_; 
+            });
             
             if (is_downloading_) {
                 audio_buffer_.push(AudioChunk(chunk_data, bytes_read));
@@ -634,8 +653,9 @@ void Esp32Music::PlayAudioStream() {
     // 等待缓冲区有足够数据开始播放
     {
         std::unique_lock<std::mutex> lock(buffer_mutex_);
-        buffer_cv_.wait(lock, [this] { 
-            return buffer_size_ >= MIN_BUFFER_SIZE || (!is_downloading_ && !audio_buffer_.empty()); 
+        auto& config = MusicServerConfig::GetInstance();
+        buffer_cv_.wait(lock, [this, &config] { 
+            return buffer_size_ >= config.GetMinBufferSize() || (!is_downloading_ && !audio_buffer_.empty()); 
         });
     }
     
@@ -979,6 +999,9 @@ size_t Esp32Music::SkipId3Tag(uint8_t* data, size_t size) {
 bool Esp32Music::DownloadLyrics(const std::string& lyric_url) {
     ESP_LOGI(TAG, "Downloading lyrics from: %s", lyric_url.c_str());
     
+    // 获取音乐服务器配置
+    auto& config = MusicServerConfig::GetInstance();
+    
     // 检查URL是否为空
     if (lyric_url.empty()) {
         ESP_LOGE(TAG, "Lyric URL is empty!");
@@ -986,7 +1009,7 @@ bool Esp32Music::DownloadLyrics(const std::string& lyric_url) {
     }
     
     // 添加重试逻辑
-    const int max_retries = 3;
+    const int max_retries = config.GetRetryCount();
     int retry_count = 0;
     bool success = false;
     std::string lyric_content;
@@ -998,7 +1021,7 @@ bool Esp32Music::DownloadLyrics(const std::string& lyric_url) {
         if (retry_count > 0) {
             ESP_LOGI(TAG, "Retrying lyric download (attempt %d of %d)", retry_count + 1, max_retries);
             // 重试前暂停一下
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(config.GetRetryDelayMs()));
         }
         
         // 使用Board提供的HTTP客户端
@@ -1010,8 +1033,10 @@ bool Esp32Music::DownloadLyrics(const std::string& lyric_url) {
         }
         
         // 设置请求头
-        http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
+        http->SetHeader("User-Agent", config.GetUserAgent().c_str());
         http->SetHeader("Accept", "text/plain");
+        http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+        http->SetHeader("Board-Type", BOARD_NAME);
         
         // 打开GET连接
         ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
