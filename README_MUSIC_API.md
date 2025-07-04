@@ -137,341 +137,21 @@ Board-Type: esp32-s3-touch-lcd-1.85
 #### 接口信息
 - **URL**: `http://www.jsrc.top:5566{audio_url}`
 - **方法**: `GET`
-- **支持**: 断点续传
 
 #### 请求示例
 ```http
 GET http://www.jsrc.top:5566/audio/stream?file=xxx.mp3
 User-Agent: ESP32-Music-Player/1.0
 Accept: */*
+Range: bytes=0-
 Device-Id: 24:6F:28:12:34:56
 Board-Type: esp32-s3-touch-lcd-1.85
-Range: bytes=0-
 ```
 
 #### 响应格式
-- **内容类型**: 音频流（MP3格式）
-- **传输方式**: 流式传输
-- **支持格式**: MP3（带ID3标签）
-
-#### 断点续传机制详解
-
-##### 1. 基本概念
-断点续传允许客户端从指定位置开始下载文件，而不是从头开始。这对于大文件下载和网络中断恢复非常有用。
-
-##### 2. HTTP Range请求格式
-```http
-# 从头开始下载
-Range: bytes=0-
-
-# 从指定位置开始下载
-Range: bytes=1024-
-
-# 下载指定范围
-Range: bytes=1024-2047
-
-# 从末尾开始下载（最后1000字节）
-Range: bytes=-1000
-```
-
-##### 3. 服务器响应
-- **状态码 200**: 不支持Range请求，返回完整文件
-- **状态码 206**: 支持Range请求，返回部分内容
-- **响应头**: `Content-Range: bytes 1024-2047/8192`
-
-##### 3.1 具体HTTP请求响应示例
-
-###### 示例1：从头开始下载
-```http
-# 客户端请求
-GET /audio/stream?file=song.mp3 HTTP/1.1
-Host: www.jsrc.top:5566
-User-Agent: ESP32-Music-Player/1.0
-Accept: */*
-Range: bytes=0-
-
-# 服务器响应
-HTTP/1.1 206 Partial Content
-Content-Type: audio/mpeg
-Content-Length: 8192
-Content-Range: bytes 0-8191/8192
-Accept-Ranges: bytes
-
-[音频数据...]
-```
-
-###### 示例2：从中间位置继续下载
-```http
-# 客户端请求（假设已经下载了4096字节）
-GET /audio/stream?file=song.mp3 HTTP/1.1
-Host: www.jsrc.top:5566
-User-Agent: ESP32-Music-Player/1.0
-Accept: */*
-Range: bytes=4096-
-
-# 服务器响应
-HTTP/1.1 206 Partial Content
-Content-Type: audio/mpeg
-Content-Length: 4096
-Content-Range: bytes 4096-8191/8192
-Accept-Ranges: bytes
-
-[剩余音频数据...]
-```
-
-###### 示例3：下载指定范围
-```http
-# 客户端请求（只下载中间部分）
-GET /audio/stream?file=song.mp3 HTTP/1.1
-Host: www.jsrc.top:5566
-User-Agent: ESP32-Music-Player/1.0
-Accept: */*
-Range: bytes=2048-4095
-
-# 服务器响应
-HTTP/1.1 206 Partial Content
-Content-Type: audio/mpeg
-Content-Length: 2048
-Content-Range: bytes 2048-4095/8192
-Accept-Ranges: bytes
-
-[指定范围的音频数据...]
-```
-
-###### 示例4：服务器不支持Range请求
-```http
-# 客户端请求
-GET /audio/stream?file=song.mp3 HTTP/1.1
-Host: www.jsrc.top:5566
-User-Agent: ESP32-Music-Player/1.0
-Accept: */*
-Range: bytes=4096-
-
-# 服务器响应（不支持Range）
-HTTP/1.1 200 OK
-Content-Type: audio/mpeg
-Content-Length: 8192
-
-[完整音频数据...]
-```
-
-##### 4. ESP32实现示例
-
-###### 当前实现（简单版本）
-```cpp
-// 当前代码中的实现
-http->SetHeader("Range", "bytes=0-");  // 总是从头开始下载
-
-int status_code = http->GetStatusCode();
-if (status_code != 200 && status_code != 206) {
-    ESP_LOGE(TAG, "HTTP GET failed with status code: %d", status_code);
-    return false;
-}
-```
-
-###### 完整断点续传实现示例
-```cpp
-class Esp32MusicWithResume : public Esp32Music {
-private:
-    size_t resume_position_ = 0;
-    std::string cache_file_path_;
-    
-public:
-    bool DownloadWithResume(const std::string& song_name) {
-        // 1. 检查是否有缓存文件
-        cache_file_path_ = "/spiffs/music_cache/" + song_name + ".mp3";
-        if (CheckCacheFile(cache_file_path_, resume_position_)) {
-            ESP_LOGI(TAG, "Found cached file, resuming from position: %d", resume_position_);
-        }
-        
-        // 2. 构建HTTP请求
-        auto http = Board::GetInstance().CreateHttp();
-        http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
-        http->SetHeader("Accept", "*/*");
-        
-        // 3. 设置Range头
-        if (resume_position_ > 0) {
-            std::string range_header = "bytes=" + std::to_string(resume_position_) + "-";
-            http->SetHeader("Range", range_header.c_str());
-            ESP_LOGI(TAG, "Requesting range: %s", range_header.c_str());
-        } else {
-            http->SetHeader("Range", "bytes=0-");
-        }
-        
-        // 4. 发送请求
-        if (!http->Open("GET", music_url)) {
-            ESP_LOGE(TAG, "Failed to connect to music stream URL");
-            return false;
-        }
-        
-        // 5. 检查响应
-        int status_code = http->GetStatusCode();
-        ESP_LOGI(TAG, "HTTP response status: %d", status_code);
-        
-        if (status_code == 206) {
-            // 部分内容响应
-            ESP_LOGI(TAG, "Server supports range requests, resuming download");
-            return HandlePartialContent(http);
-        } else if (status_code == 200) {
-            // 完整内容响应
-            ESP_LOGI(TAG, "Server doesn't support range requests, downloading from start");
-            resume_position_ = 0;
-            return HandleFullContent(http);
-        } else {
-            ESP_LOGE(TAG, "HTTP request failed: %d", status_code);
-            return false;
-        }
-    }
-    
-private:
-    bool CheckCacheFile(const std::string& path, size_t& file_size) {
-        FILE* file = fopen(path.c_str(), "rb");
-        if (file) {
-            fseek(file, 0, SEEK_END);
-            file_size = ftell(file);
-            fclose(file);
-            return file_size > 0;
-        }
-        return false;
-    }
-    
-    bool HandlePartialContent(Http* http) {
-        // 处理206响应
-        const size_t chunk_size = 4096;
-        char buffer[chunk_size];
-        size_t total_downloaded = resume_position_;
-        
-        while (is_downloading_) {
-            int bytes_read = http->Read(buffer, chunk_size);
-            if (bytes_read <= 0) break;
-            
-            // 保存到缓存文件
-            SaveToCache(buffer, bytes_read, total_downloaded);
-            
-            // 添加到播放缓冲区
-            AddToPlayBuffer(buffer, bytes_read);
-            
-            total_downloaded += bytes_read;
-            
-            // 每256KB打印进度
-            if (total_downloaded % (256 * 1024) == 0) {
-                ESP_LOGI(TAG, "Downloaded %d bytes (resumed from %d)", 
-                        total_downloaded, resume_position_);
-            }
-        }
-        
-        return true;
-    }
-    
-    bool HandleFullContent(Http* http) {
-        // 处理200响应（从头开始下载）
-        const size_t chunk_size = 4096;
-        char buffer[chunk_size];
-        size_t total_downloaded = 0;
-        
-        while (is_downloading_) {
-            int bytes_read = http->Read(buffer, chunk_size);
-            if (bytes_read <= 0) break;
-            
-            // 保存到缓存文件
-            SaveToCache(buffer, bytes_read, total_downloaded);
-            
-            // 添加到播放缓冲区
-            AddToPlayBuffer(buffer, bytes_read);
-            
-            total_downloaded += bytes_read;
-        }
-        
-        return true;
-    }
-    
-    void SaveToCache(const char* data, size_t size, size_t offset) {
-        FILE* file = fopen(cache_file_path_.c_str(), "rb+");
-        if (!file) {
-            file = fopen(cache_file_path_.c_str(), "wb");
-        }
-        
-        if (file) {
-            fseek(file, offset, SEEK_SET);
-            fwrite(data, 1, size, file);
-            fclose(file);
-        }
-    }
-    
-    void AddToPlayBuffer(const char* data, size_t size) {
-        uint8_t* chunk_data = (uint8_t*)heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
-        if (chunk_data) {
-            memcpy(chunk_data, data, size);
-            
-            std::lock_guard<std::mutex> lock(buffer_mutex_);
-            audio_buffer_.push(AudioChunk(chunk_data, size));
-            buffer_size_ += size;
-            buffer_cv_.notify_one();
-        }
-    }
-};
-```
-
-##### 5. 断点续传的优势
-
-###### 网络中断恢复
-```
-场景：下载到50%时网络中断
-↓
-重新连接后，从50%位置继续下载
-↓
-节省带宽和时间
-```
-
-###### 大文件下载优化
-```
-文件大小：10MB
-网络速度：1MB/s
-预计时间：10秒
-
-如果中断在5秒时：
-- 传统方式：重新下载10MB，需要10秒
-- 断点续传：继续下载5MB，需要5秒
-```
-
-###### 多设备同步
-```
-设备A：下载了前30%
-设备B：可以从30%位置开始下载
-设备C：可以从60%位置开始下载
-```
-
-##### 6. 实际使用场景
-
-###### 场景1：网络不稳定
-```
-用户：播放周杰伦的稻香
-↓
-开始下载：0% → 25% → 网络中断
-↓
-网络恢复：从25%位置继续下载
-↓
-播放体验：无缝继续
-```
-
-###### 场景2：设备重启
-```
-播放中：设备意外重启
-↓
-重启后：检查缓存文件
-↓
-发现缓存：从缓存位置继续下载
-↓
-用户体验：快速恢复播放
-```
-
-###### 场景3：切换网络
-```
-WiFi下载：0% → 40%
-切换到4G：从40%位置继续
-↓
-节省流量：只下载剩余60%
-```
+- **Content-Type**: `audio/mpeg`
+- **Content-Length**: 音频文件大小（字节）
+- **Accept-Ranges**: `bytes`（支持断点续传）
 
 ---
 
@@ -491,88 +171,164 @@ Board-Type: esp32-s3-touch-lcd-1.85
 ```
 
 #### 响应格式
-- **内容类型**: 文本（LRC歌词格式）
-- **编码**: UTF-8
-- **格式**: `[mm:ss.xx]歌词文本`
+- **Content-Type**: `text/plain; charset=utf-8`
+- **内容**: LRC格式歌词文件
 
 ---
 
-## 完整的API调用流程
+## 新增API接口（自动播放和列表播放）
 
-### 步骤1: 搜索音乐
-```
-用户请求: "播放周杰伦的稻香"
-↓
-构建URL: http://www.jsrc.top:5566/stream_pcm?song=周杰伦%20稻香
-↓
-发送GET请求
-↓
-解析响应JSON，获取audio_url和lyric_url
+### 4. 下一首歌曲API
+
+#### 接口信息
+- **URL**: `http://www.jsrc.top:5566/next_song`
+- **方法**: `GET`
+- **功能**: 获取下一首推荐歌曲
+
+#### 请求示例
+```http
+GET http://www.jsrc.top:5566/next_song
+User-Agent: ESP32-Music-Player/1.0
+Accept: application/json
+Device-Id: 24:6F:28:12:34:56
+Board-Type: esp32-s3-touch-lcd-1.85
 ```
 
-### 步骤2: 并行下载
-```
-音频流下载: GET http://www.jsrc.top:5566/audio/stream?file=xxx.mp3
-歌词下载:   GET http://www.jsrc.top:5566/lyric/stream?file=xxx.lrc
+#### 响应格式
+```json
+{
+  "song_name": "周杰伦 青花瓷",
+  "artist": "周杰伦",
+  "title": "青花瓷",
+  "audio_url": "/audio/stream?file=qinghuaci.mp3",
+  "lyric_url": "/lyric/stream?file=qinghuaci.lrc"
+}
 ```
 
-### 步骤3: 流式播放
+#### 响应字段说明
+- `song_name`: 歌曲搜索名称
+- `artist`: 艺术家名称
+- `title`: 歌曲标题
+- `audio_url`: 音频流下载路径
+- `lyric_url`: 歌词文件下载路径
+
+---
+
+### 5. 上一首歌曲API
+
+#### 接口信息
+- **URL**: `http://www.jsrc.top:5566/previous_song`
+- **方法**: `GET`
+- **功能**: 获取上一首推荐歌曲
+
+#### 请求示例
+```http
+GET http://www.jsrc.top:5566/previous_song
+User-Agent: ESP32-Music-Player/1.0
+Accept: application/json
+Device-Id: 24:6F:28:12:34:56
+Board-Type: esp32-s3-touch-lcd-1.85
 ```
-音频数据 → MP3解码 → PCM数据 → 音频输出
-歌词数据 → LRC解析 → 时间同步 → 屏幕显示
+
+#### 响应格式
+```json
+{
+  "song_name": "周杰伦 稻香",
+  "artist": "周杰伦",
+  "title": "稻香",
+  "audio_url": "/audio/stream?file=daoxiang.mp3",
+  "lyric_url": "/lyric/stream?file=daoxiang.lrc"
+}
 ```
 
 ---
 
-## URL编码处理
+### 6. 播放列表API
 
-### URL编码函数
-```cpp
-static std::string url_encode(const std::string& str) {
-    std::string encoded;
-    char hex[4];
-    
-    for (size_t i = 0; i < str.length(); i++) {
-        unsigned char c = str[i];
-        
-        if ((c >= 'A' && c <= 'Z') ||
-            (c >= 'a' && c <= 'z') ||
-            (c >= '0' && c <= '9') ||
-            c == '-' || c == '_' || c == '.' || c == '~') {
-            encoded += c;
-        } else if (c == ' ') {
-            encoded += '+';  // 空格编码为'+'
-        } else {
-            snprintf(hex, sizeof(hex), "%%%02X", c);
-            encoded += hex;
-        }
+#### 接口信息
+- **URL**: `http://www.jsrc.top:5566/playlist`
+- **方法**: `GET`
+- **参数**: `query` - 播放列表查询条件（URL编码）
+- **功能**: 根据查询条件获取播放列表
+
+#### 请求示例
+```http
+GET http://www.jsrc.top:5566/playlist?query=周杰伦
+User-Agent: ESP32-Music-Player/1.0
+Accept: application/json
+Device-Id: 24:6F:28:12:34:56
+Board-Type: esp32-s3-touch-lcd-1.85
+```
+
+#### 响应格式
+```json
+{
+  "query": "周杰伦",
+  "total": 15,
+  "songs": [
+    {
+      "song_name": "周杰伦 稻香",
+      "artist": "周杰伦",
+      "title": "稻香",
+      "audio_url": "/audio/stream?file=daoxiang.mp3",
+      "lyric_url": "/lyric/stream?file=daoxiang.lrc"
+    },
+    {
+      "song_name": "周杰伦 青花瓷",
+      "artist": "周杰伦",
+      "title": "青花瓷",
+      "audio_url": "/audio/stream?file=qinghuaci.mp3",
+      "lyric_url": "/lyric/stream?file=qinghuaci.lrc"
+    },
+    {
+      "song_name": "周杰伦 夜曲",
+      "artist": "周杰伦",
+      "title": "夜曲",
+      "audio_url": "/audio/stream?file=yequ.mp3",
+      "lyric_url": "/lyric/stream?file=yequ.lrc"
     }
-    return encoded;
+  ]
 }
 ```
 
-### 编码示例
-- `周杰伦 稻香` → `周杰伦+稻香`
-- `Hello World` → `Hello+World`
-- `特殊字符@#$` → `%E7%89%B9%E6%AE%8A%E5%AD%97%E7%AC%A6%40%23%24`
+#### 响应字段说明
+- `query`: 原始查询条件
+- `total`: 播放列表总歌曲数
+- `songs`: 歌曲数组
+  - `song_name`: 歌曲搜索名称
+  - `artist`: 艺术家名称
+  - `title`: 歌曲标题
+  - `audio_url`: 音频流下载路径
+  - `lyric_url`: 歌词文件下载路径
 
 ---
 
-## 错误处理和重试机制
+## 错误处理
 
-### HTTP状态码处理
-```cpp
-int status_code = http->GetStatusCode();
-if (status_code != 200) {
-    ESP_LOGE(TAG, "HTTP GET failed with status code: %d", status_code);
-    return false;
+### HTTP状态码
+- `200 OK`: 请求成功
+- `400 Bad Request`: 请求参数错误
+- `404 Not Found`: 资源未找到
+- `500 Internal Server Error`: 服务器内部错误
+
+### 错误响应格式
+```json
+{
+  "error": true,
+  "code": 404,
+  "message": "歌曲未找到",
+  "details": "没有找到匹配的歌曲"
 }
 ```
 
-### 歌词下载重试
+---
+
+## 重试机制
+
+### 音乐搜索重试
 - **最大重试次数**: 3次
 - **重试间隔**: 500ms
-- **重试条件**: HTTP错误、网络超时、数据读取失败
+- **重试条件**: HTTP错误、网络超时
 
 ```cpp
 const int max_retries = 3;
@@ -584,6 +340,155 @@ while (retry_count < max_retries && !success) {
     retry_count++;
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
+```
+
+### 音频流下载重试
+- **最大重试次数**: 3次
+- **重试间隔**: 1000ms
+- **重试条件**: 网络中断、数据读取失败
+
+### 歌词下载重试
+- **最大重试次数**: 3次
+- **重试间隔**: 500ms
+- **重试条件**: HTTP错误、网络超时、数据读取失败
+
+```cpp
+const int max_retries = 3;
+int retry_count = 0;
+bool success = false;
+std::string lyric_content;
+std::string current_url = lyric_url;
+int redirect_count = 0;
+const int max_redirects = 5;  // 最多允许5次重定向
+
+while (retry_count < max_retries && !success && redirect_count < max_redirects) {
+    if (retry_count > 0) {
+        ESP_LOGI(TAG, "Retrying lyric download (attempt %d of %d)", retry_count + 1, max_retries);
+        // 重试前暂停一下
+        std::this_thread::sleep_for(std::chrono::milliseconds(config.GetRetryDelayMs()));
+    }
+    
+    // 使用Board提供的HTTP客户端
+    auto http = Board::GetInstance().CreateHttp();
+    if (!http) {
+        ESP_LOGE(TAG, "Failed to create HTTP client for lyric download");
+        retry_count++;
+        continue;
+    }
+    
+    // 设置请求头
+    http->SetHeader("User-Agent", config.GetUserAgent().c_str());
+    http->SetHeader("Accept", "text/plain");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Board-Type", BOARD_NAME);
+    
+    // 打开GET连接
+    ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
+    if (!http->Open("GET", current_url)) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection for lyrics");
+        delete http;
+        retry_count++;
+        continue;
+    }
+    
+    // 检查HTTP状态码
+    int status_code = http->GetStatusCode();
+    ESP_LOGI(TAG, "Lyric download HTTP status code: %d", status_code);
+    
+    // 处理重定向 - 由于Http类没有GetHeader方法，我们只能根据状态码判断
+    if (status_code == 301 || status_code == 302 || status_code == 303 || status_code == 307 || status_code == 308) {
+        // 由于无法获取Location头，只能报告重定向但无法继续
+        ESP_LOGW(TAG, "Received redirect status %d but cannot follow redirect (no GetHeader method)", status_code);
+        http->Close();
+        delete http;
+        retry_count++;
+        continue;
+    }
+    
+    // 非200系列状态码视为错误
+    if (status_code < 200 || status_code >= 300) {
+        ESP_LOGE(TAG, "HTTP GET failed with status code: %d", status_code);
+        http->Close();
+        delete http;
+        retry_count++;
+        continue;
+    }
+    
+    // 读取响应
+    lyric_content.clear();
+    char buffer[1024];
+    int bytes_read;
+    bool read_error = false;
+    int total_read = 0;
+    
+    // 由于无法获取Content-Length和Content-Type头，我们不知道预期大小和内容类型
+    ESP_LOGD(TAG, "Starting to read lyric content");
+    
+    while (true) {
+        bytes_read = http->Read(buffer, sizeof(buffer) - 1);
+        // ESP_LOGD(TAG, "Lyric HTTP read returned %d bytes", bytes_read); // 注释掉以减少日志输出
+        
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            lyric_content += buffer;
+            total_read += bytes_read;
+            
+            // 定期打印下载进度 - 改为DEBUG级别减少输出
+            if (total_read % 4096 == 0) {
+                ESP_LOGD(TAG, "Downloaded %d bytes so far", total_read);
+            }
+        } else if (bytes_read == 0) {
+            // 正常结束，没有更多数据
+            ESP_LOGD(TAG, "Lyric download completed, total bytes: %d", total_read);
+            success = true;
+            break;
+        } else {
+            // bytes_read < 0，可能是ESP-IDF的已知问题
+            // 如果已经读取到了一些数据，则认为下载成功
+            if (!lyric_content.empty()) {
+                ESP_LOGW(TAG, "HTTP read returned %d, but we have data (%d bytes), continuing", bytes_read, lyric_content.length());
+                success = true;
+                break;
+            } else {
+                ESP_LOGE(TAG, "Failed to read lyric data: error code %d", bytes_read);
+                read_error = true;
+                break;
+            }
+        }
+    }
+    
+    http->Close();
+    delete http;
+    
+    if (read_error) {
+        retry_count++;
+        continue;
+    }
+    
+    // 如果成功读取数据，跳出重试循环
+    if (success) {
+        break;
+    }
+}
+
+// 检查是否超过了最大重试次数
+if (retry_count >= max_retries) {
+    ESP_LOGE(TAG, "Failed to download lyrics after %d attempts", max_retries);
+    return false;
+}
+
+// 记录前几个字节的数据，帮助调试
+if (!lyric_content.empty()) {
+    size_t preview_size = std::min(lyric_content.size(), size_t(50));
+    std::string preview = lyric_content.substr(0, preview_size);
+    ESP_LOGD(TAG, "Lyric content preview (%d bytes): %s", lyric_content.length(), preview.c_str());
+} else {
+    ESP_LOGE(TAG, "Failed to download lyrics or lyrics are empty");
+    return false;
+}
+
+ESP_LOGI(TAG, "Lyrics downloaded successfully, size: %d bytes", lyric_content.length());
+return ParseLyrics(lyric_content);
 ```
 
 ---
@@ -626,6 +531,11 @@ while (retry_count < max_retries && !success) {
 - **歌词格式**: LRC
 - **编码格式**: UTF-8
 
+### 5. 自动播放功能
+- **自动播放下一首**: 播放完一首歌后自动请求下一首
+- **播放模式切换**: 支持单曲、自动播放、列表播放三种模式
+- **播放列表管理**: 支持按艺术家、专辑等条件创建播放列表
+
 ---
 
 ## 使用示例
@@ -653,6 +563,41 @@ music_player.StartStreaming("http://www.jsrc.top:5566/audio/stream?file=xxx.mp3"
 music_player.StopStreaming();
 ```
 
+### 自动播放功能
+```cpp
+// 启用自动播放下一首
+music_player.EnableAutoNext(true);
+
+// 设置播放模式为自动播放
+music_player.SetPlayMode(PlayMode::AUTO_NEXT);
+
+// 播放歌曲（播放完后会自动播放下一首）
+music_player.Download("随机歌曲");
+```
+
+### 列表播放功能
+```cpp
+// 创建播放列表
+music_player.CreatePlaylist("周杰伦");
+
+// 设置播放模式为列表播放
+music_player.SetPlayMode(PlayMode::PLAYLIST);
+
+// 启用自动播放下一首
+music_player.EnableAutoNext(true);
+
+// 开始播放第一首歌曲
+if (music_player.GetPlaylistSize() > 0) {
+    music_player.Download(music_player.GetCurrentSongName());
+}
+
+// 手动播放下一首
+music_player.PlayNext();
+
+// 手动播放上一首
+music_player.PlayPrevious();
+```
+
 ---
 
 ## 注意事项
@@ -662,6 +607,8 @@ music_player.StopStreaming();
 3. **编码处理**: 确保UTF-8编码正确处理中文字符
 4. **错误处理**: 实现适当的错误处理和重试机制
 5. **线程安全**: 多线程环境下注意数据同步
+6. **自动播放**: 确保在合适的时机启用/禁用自动播放功能
+7. **播放列表**: 播放列表为空时需要进行相应处理
 
 ---
 
@@ -670,6 +617,7 @@ music_player.StopStreaming();
 - `main/boards/common/esp32_music.cc` - 音乐播放器实现
 - `main/boards/common/esp32_music.h` - 音乐播放器头文件
 - `main/boards/common/music.h` - 音乐播放器基类
+- `main/mcp_server.cc` - MCP工具定义
 
 ---
 
@@ -679,6 +627,7 @@ music_player.StopStreaming();
 - **v1.1**: 添加歌词显示功能
 - **v1.2**: 优化流式播放和缓冲区管理
 - **v1.3**: 添加错误处理和重试机制
+- **v1.4**: 新增自动播放和列表播放功能
 
 ---
 

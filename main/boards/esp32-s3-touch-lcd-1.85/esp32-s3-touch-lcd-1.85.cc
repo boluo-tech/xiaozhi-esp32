@@ -7,7 +7,8 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 // MCP音乐播放相关头文件
-#include "esp32_music_mcp_client.h"
+// #include "esp32_music_mcp_client.h"
+#include "boards/common/esp32_music.h"
 
 #include <esp_log.h>
 #include "i2c_device.h"
@@ -226,9 +227,9 @@ private:
     button_driver_t* pwr_btn_driver_ = nullptr;
     static CustomBoard* instance_;
     
-    // MCP音乐播放器
-    std::unique_ptr<Esp32MusicMcpClient> mcp_music_player_;
-    std::string mcp_server_url_;
+    // std::unique_ptr<Esp32MusicMcpClient> mcp_music_player_;
+    std::unique_ptr<Esp32Music> music_player_;
+    // std::string mcp_server_url_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -438,26 +439,15 @@ private:
         thing_manager.AddThing(iot::CreateThing("Screen"));
     }
     
-    // 初始化MCP音乐播放器
-    void InitializeMcpMusicPlayer() {
-        ESP_LOGI(TAG, "初始化MCP音乐播放器");
-        
-        // 配置MCP服务器地址（可以从配置文件读取）
-        mcp_server_url_ = "http://192.168.1.100:8080";  // 默认MCP服务器地址
-        
-        // 创建MCP客户端音乐播放器
-        mcp_music_player_ = std::make_unique<Esp32MusicMcpClient>(mcp_server_url_);
-        
-        if (!mcp_music_player_) {
-            ESP_LOGE(TAG, "创建MCP音乐播放器失败");
+    // 初始化音乐播放器
+    void InitializeMusicPlayer() {
+        ESP_LOGI(TAG, "初始化音乐播放器");
+        music_player_ = std::make_unique<Esp32Music>();
+        if (!music_player_) {
+            ESP_LOGE(TAG, "创建音乐播放器失败");
             return;
         }
-        
-        if (mcp_music_player_->IsMcpAvailable()) {
-            ESP_LOGI(TAG, "MCP音乐播放器初始化成功，已连接到服务器: %s", mcp_server_url_.c_str());
-        } else {
-            ESP_LOGW(TAG, "MCP服务器连接失败，将使用本地播放模式");
-        }
+        ESP_LOGI(TAG, "音乐播放器初始化成功");
     }
 
 public:
@@ -468,7 +458,7 @@ public:
         Initializest77916Display();
         InitializeButtons();
         InitializeIot();
-        InitializeMcpMusicPlayer();
+        InitializeMusicPlayer();
         GetBacklight()->RestoreBrightness();
     }
 
@@ -488,44 +478,26 @@ public:
         return &backlight;
     }
     
-    // 获取MCP音乐播放器
+    // 获取音乐播放器
     virtual Music* GetMusic() override {
-        if (mcp_music_player_) {
-            return mcp_music_player_.get();
+        if (music_player_) {
+            return music_player_.get();
         }
         return nullptr;
     }
     
-    // 设置MCP服务器地址
-    void SetMcpServerUrl(const std::string& url) {
-        mcp_server_url_ = url;
-        ESP_LOGI(TAG, "设置MCP服务器地址: %s", url.c_str());
-        
-        // 如果已有播放器，更新服务器地址
-        if (mcp_music_player_) {
-            mcp_music_player_->SetMcpServerUrl(mcp_server_url_);
-        }
-    }
-    
-    // 获取MCP连接状态
-    bool IsMcpConnected() const {
-        return mcp_music_player_ && mcp_music_player_->IsMcpAvailable();
-    }
-    
-    // 处理MCP音乐播放请求
-    void HandleMcpMusicRequest(const std::string& song_name) {
-        ESP_LOGI(TAG, "处理MCP音乐播放请求: %s", song_name.c_str());
-        
-        if (mcp_music_player_) {
-            // 尝试播放音乐
-            if (mcp_music_player_->Download(song_name)) {
-                mcp_music_player_->Play();
+    // 处理音乐播放请求
+    void HandleMusicRequest(const std::string& song_name) {
+        ESP_LOGI(TAG, "处理音乐播放请求: %s", song_name.c_str());
+        if (music_player_) {
+            if (music_player_->Download(song_name)) {
+                music_player_->Play();
                 ESP_LOGI(TAG, "开始播放: %s", song_name.c_str());
             } else {
                 ESP_LOGE(TAG, "播放失败: %s", song_name.c_str());
             }
         } else {
-            ESP_LOGE(TAG, "MCP音乐播放器不可用");
+            ESP_LOGE(TAG, "音乐播放器不可用");
         }
     }
 };
