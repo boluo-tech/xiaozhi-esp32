@@ -221,6 +221,9 @@ bool Esp32Music::Download(const std::string& song_name) {
     // 设置请求头
     http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "application/json");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Client-Id", Board::GetInstance().GetUuid());
+    http->SetHeader("Board-Type", Board::GetInstance().GetBoardType());
     
     // 打开GET连接
     if (!http->Open("GET", full_url)) {
@@ -500,6 +503,9 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "*/*");
     http->SetHeader("Range", "bytes=0-");  // 支持断点续传
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Client-Id", Board::GetInstance().GetUuid());
+    http->SetHeader("Board-Type", Board::GetInstance().GetBoardType());
     
     if (!http->Open("GET", music_url)) {
         ESP_LOGE(TAG, "Failed to connect to music stream URL");
@@ -1013,6 +1019,9 @@ bool Esp32Music::DownloadLyrics(const std::string& lyric_url) {
         // 设置请求头
         http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
         http->SetHeader("Accept", "text/plain");
+        http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+        http->SetHeader("Client-Id", Board::GetInstance().GetUuid());
+        http->SetHeader("Board-Type", Board::GetInstance().GetBoardType());
         
         // 打开GET连接
         if (!http->Open("GET", current_url)) {
