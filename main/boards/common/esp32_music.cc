@@ -5,6 +5,7 @@
 #include "application.h"
 #include "protocols/protocol.h"
 #include "display/display.h"
+#include "sdkconfig.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
@@ -209,7 +210,8 @@ bool Esp32Music::Download(const std::string& song_name) {
     current_song_name_ = song_name;
     
     // 第一步：请求stream_pcm接口获取音频信息
-    std::string api_url = "http://www.jsrc.top:5566/stream_pcm";
+    std::string api_url = CONFIG_MUSIC_SERVER_URL;
+    api_url += "/stream_pcm";
     std::string full_url = api_url + "?song=" + url_encode(song_name);
     
     ESP_LOGI(TAG, "Request URL: %s", full_url.c_str());
@@ -264,7 +266,7 @@ bool Esp32Music::Download(const std::string& song_name) {
                 ESP_LOGI(TAG, "Audio URL path: %s", audio_url->valuestring);
                 
                 // 第二步：拼接完整的音频下载URL，确保对audio_url进行URL编码
-                std::string base_url = "http://www.jsrc.top:5566";
+                std::string base_url = CONFIG_MUSIC_SERVER_URL;
                 std::string audio_path = audio_url->valuestring;
                 
                 // 使用统一的URL构建功能
