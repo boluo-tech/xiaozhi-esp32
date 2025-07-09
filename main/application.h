@@ -24,6 +24,7 @@
 #include "wake_word.h"
 #include "audio_debugger.h"
 #include "font_awesome_symbols.h"
+#include "assets/emotion_config.h"
 
 #define SCHEDULE_EVENT (1 << 0)
 #define SEND_AUDIO_EVENT (1 << 1)
@@ -100,6 +101,7 @@ private:
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     esp_timer_handle_t emotion_timer_ = nullptr;  // 表情切换定时器
+    const std::vector<const char*> idle_emotions = GetEmotionNames();  // 表情名称列表
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
@@ -146,8 +148,9 @@ private:
     void ExitAudioTestingMode();
     
     // 表情相关方法
-    static void EmotionTimerCallback(void* arg);  // 定时器回调函数
-    void UpdateIdleEmotion();  // 更新待机表情
+    void StartRandomEmotionTimer();  // 启动随机表情定时器
+    void StopRandomEmotionTimer();   // 停止随机表情定时器
+    void OnEmotionTimer();           // 表情定时器回调
 };
 
 #endif // _APPLICATION_H_

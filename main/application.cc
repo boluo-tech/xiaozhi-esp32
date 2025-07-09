@@ -554,15 +554,9 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
-            if (emotion != NULL) {
+            if (cJSON_IsString(emotion)) {
                 Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
-                    // 只在非说话状态下更新表情，避免覆盖我们随机选择的表情
-                    if (device_state_ != kDeviceStateSpeaking) {
-                        ESP_LOGI(TAG, "LLM emotion update: %s", emotion_str.c_str());
-                        display->SetEmotion(emotion_str.c_str());
-                    } else {
-                        ESP_LOGI(TAG, "Ignoring LLM emotion update: %s (device in speaking state)", emotion_str.c_str());
-                    }
+                    display->SetEmotion(emotion_str.c_str());
                 });
             }
 #if CONFIG_IOT_PROTOCOL_MCP
@@ -1002,37 +996,20 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
-            display->SetEmotion("sleepy");
-            
-            // 启动表情切换定时器
-            if (emotion_timer_ == nullptr) {
-                esp_timer_create_args_t timer_args = {
-                    .callback = &Application::EmotionTimerCallback,
-                    .arg = this,
-                    .name = "emotion_timer"
-                };
-                ESP_ERROR_CHECK(esp_timer_create(&timer_args, &emotion_timer_));
-            }
-            ESP_ERROR_CHECK(esp_timer_start_periodic(emotion_timer_, 15000000)); // 15秒切换一次表情
-            
+            display->SetEmotion("neutral");
+            StartRandomEmotionTimer(); // 启动随机表情
             audio_processor_->Stop();
             wake_word_->StartDetection();
             break;
         case kDeviceStateConnecting:
-            // 停止表情切换定时器
-            if (emotion_timer_ != nullptr) {
-                esp_timer_stop(emotion_timer_);
-            }
+            StopRandomEmotionTimer(); // 停止随机表情
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             timestamp_queue_.clear();
             break;
         case kDeviceStateListening:
-            // 停止表情切换定时器
-            if (emotion_timer_ != nullptr) {
-                esp_timer_stop(emotion_timer_);
-            }
+            StopRandomEmotionTimer(); // 停止随机表情
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
             // Update the IoT states before sending the start listening command
@@ -1056,32 +1033,18 @@ void Application::SetDeviceState(DeviceState state) {
             }
             break;
         case kDeviceStateSpeaking:
-            // 停止表情切换定时器
-            if (emotion_timer_ != nullptr) {
-                esp_timer_stop(emotion_timer_);
-            }
+            StopRandomEmotionTimer(); // 停止随机表情
             display->SetStatus(Lang::Strings::SPEAKING);
 
             // 随机选择一个表情
             {
-                static const char* speaking_emotions[] = {
-                    "angry",     // 生气
-                    "crying",   // 哭泣
-                    "neutral",    // 中性
-                    "sad",    // 难过的
-                    "happy",      // 开心
-                    "loving",     // 爱心
-                    "embarrassed",// 害羞
-                    "laughing",   // 大笑
-                    "funny"      // 搞笑
-                };
                 static bool seeded = false;
                 if (!seeded) {
                     srand(time(NULL));
                     seeded = true;
                 }
-                int random_index = rand() % (sizeof(speaking_emotions) / sizeof(speaking_emotions[0]));
-                const char* selected_emotion = speaking_emotions[random_index];
+                int random_index = rand() % idle_emotions.size();
+                const char* selected_emotion = idle_emotions[random_index];
                 ESP_LOGI(TAG, "Speaking state: selected emotion %s (index %d)", selected_emotion, random_index);
                 display->SetEmotion(selected_emotion);
             }
@@ -1298,29 +1261,33 @@ void Application::AddAudioData(AudioStreamPacket&& packet) {
     }
 }
 
-// 表情定时器回调函数
-void Application::EmotionTimerCallback(void* arg) {
-    auto app = static_cast<Application*>(arg);
-    app->UpdateIdleEmotion();
+void Application::StartRandomEmotionTimer() {
+    if (emotion_timer_ == nullptr) {
+        esp_timer_create_args_t timer_args = {
+            .callback = [](void* arg) {
+                auto app = static_cast<Application*>(arg);
+                app->OnEmotionTimer();
+            },
+            .arg = this,
+            .name = "emotion_timer",
+            .skip_unhandled_events = true
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &emotion_timer_));
+    }
+    esp_timer_start_periodic(emotion_timer_, 15000000); // 15秒切换一次表情
 }
 
-void Application::UpdateIdleEmotion() {
-    static int emotion_index = 0;
-    const char* emotions[] = {
-        "angry",     // 生气
-        "crying",   // 哭泣
-        "neutral",    // 中性
-        "sad",    // 难过的 
-        "happy",      // 开心 
-        "loving",     // 爱心 
-        "embarrassed",// 害羞 
-        "laughing",   // 大笑
-        "funny"      // 搞笑
-    };
-    const int emotion_count = sizeof(emotions) / sizeof(emotions[0]);
-    
-    auto& board = Board::GetInstance();
-    auto display = board.GetDisplay();
-    display->SetEmotion(emotions[emotion_index]);
-    emotion_index = (emotion_index + 1) % emotion_count;
+void Application::StopRandomEmotionTimer() {
+    if (emotion_timer_ != nullptr) {
+        esp_timer_stop(emotion_timer_);
+    }
+}
+
+void Application::OnEmotionTimer() {
+    if (device_state_ == kDeviceStateIdle) {
+        int random_index = rand() % idle_emotions.size();
+        auto& board = Board::GetInstance();
+        auto display = board.GetDisplay();
+        display->SetEmotion(idle_emotions[random_index]);
+    }
 }
