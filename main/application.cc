@@ -11,6 +11,7 @@
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "audio_debugger.h"
+#include <esp_random.h>
 
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "afe_audio_processor.h"
@@ -31,6 +32,8 @@
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
+#include <time.h>
+#include <stdlib.h>
 
 #define TAG "Application"
 
@@ -93,6 +96,10 @@ Application::~Application() {
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
+    }
+    if (emotion_timer_ != nullptr) {
+        esp_timer_stop(emotion_timer_);
+        esp_timer_delete(emotion_timer_);
     }
     if (background_task_ != nullptr) {
         delete background_task_;
@@ -547,9 +554,15 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
-            if (cJSON_IsString(emotion)) {
+            if (emotion != NULL) {
                 Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
-                    display->SetEmotion(emotion_str.c_str());
+                    // 只在非说话状态下更新表情，避免覆盖我们随机选择的表情
+                    if (device_state_ != kDeviceStateSpeaking) {
+                        ESP_LOGI(TAG, "LLM emotion update: %s", emotion_str.c_str());
+                        display->SetEmotion(emotion_str.c_str());
+                    } else {
+                        ESP_LOGI(TAG, "Ignoring LLM emotion update: %s (device in speaking state)", emotion_str.c_str());
+                    }
                 });
             }
 #if CONFIG_IOT_PROTOCOL_MCP
@@ -989,17 +1002,37 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
-            display->SetEmotion("neutral");
+            display->SetEmotion("sleepy");
+            
+            // 启动表情切换定时器
+            if (emotion_timer_ == nullptr) {
+                esp_timer_create_args_t timer_args = {
+                    .callback = &Application::EmotionTimerCallback,
+                    .arg = this,
+                    .name = "emotion_timer"
+                };
+                ESP_ERROR_CHECK(esp_timer_create(&timer_args, &emotion_timer_));
+            }
+            ESP_ERROR_CHECK(esp_timer_start_periodic(emotion_timer_, 15000000)); // 15秒切换一次表情
+            
             audio_processor_->Stop();
             wake_word_->StartDetection();
             break;
         case kDeviceStateConnecting:
+            // 停止表情切换定时器
+            if (emotion_timer_ != nullptr) {
+                esp_timer_stop(emotion_timer_);
+            }
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             timestamp_queue_.clear();
             break;
         case kDeviceStateListening:
+            // 停止表情切换定时器
+            if (emotion_timer_ != nullptr) {
+                esp_timer_stop(emotion_timer_);
+            }
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
             // Update the IoT states before sending the start listening command
@@ -1023,7 +1056,35 @@ void Application::SetDeviceState(DeviceState state) {
             }
             break;
         case kDeviceStateSpeaking:
+            // 停止表情切换定时器
+            if (emotion_timer_ != nullptr) {
+                esp_timer_stop(emotion_timer_);
+            }
             display->SetStatus(Lang::Strings::SPEAKING);
+
+            // 随机选择一个表情
+            {
+                static const char* speaking_emotions[] = {
+                    "angry",     // 生气
+                    "crying",   // 哭泣
+                    "neutral",    // 中性
+                    "sad",    // 难过的
+                    "happy",      // 开心
+                    "loving",     // 爱心
+                    "embarrassed",// 害羞
+                    "laughing",   // 大笑
+                    "funny"      // 搞笑
+                };
+                static bool seeded = false;
+                if (!seeded) {
+                    srand(time(NULL));
+                    seeded = true;
+                }
+                int random_index = rand() % (sizeof(speaking_emotions) / sizeof(speaking_emotions[0]));
+                const char* selected_emotion = speaking_emotions[random_index];
+                ESP_LOGI(TAG, "Speaking state: selected emotion %s (index %d)", selected_emotion, random_index);
+                display->SetEmotion(selected_emotion);
+            }
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_processor_->Stop();
@@ -1235,4 +1296,31 @@ void Application::AddAudioData(AudioStreamPacket&& packet) {
             }
         }
     }
+}
+
+// 表情定时器回调函数
+void Application::EmotionTimerCallback(void* arg) {
+    auto app = static_cast<Application*>(arg);
+    app->UpdateIdleEmotion();
+}
+
+void Application::UpdateIdleEmotion() {
+    static int emotion_index = 0;
+    const char* emotions[] = {
+        "angry",     // 生气
+        "crying",   // 哭泣
+        "neutral",    // 中性
+        "sad",    // 难过的 
+        "happy",      // 开心 
+        "loving",     // 爱心 
+        "embarrassed",// 害羞 
+        "laughing",   // 大笑
+        "funny"      // 搞笑
+    };
+    const int emotion_count = sizeof(emotions) / sizeof(emotions[0]);
+    
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    display->SetEmotion(emotions[emotion_index]);
+    emotion_index = (emotion_index + 1) % emotion_count;
 }
