@@ -14,7 +14,7 @@ source $IDF_PATH/export.sh
 
 release_name='doro'
 output_dir='tmp_releases'  # 默认输出目录
-skip_conversion=1  # 0表示不跳过图片转换步骤，1表示跳过
+skip_conversion=0  # 0表示不跳过图片转换步骤，1表示跳过
 image_input_dir="" # 图片输入目录
 do_build=1 # 1表示编译
 do_package=1 # 1表示打包
@@ -78,6 +78,7 @@ if [ $skip_conversion -eq 0 ]; then
         exit 1
     fi
     cd scripts/lvgl8_2_lvgl9
+    rm -rf output/*
     python3 convert_lvgl8_to_lvgl9.py "$image_input_dir"
     if [ $? -ne 0 ]; then
         print_error "Image conversion failed!"
