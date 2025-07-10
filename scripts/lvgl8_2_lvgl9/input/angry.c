@@ -17,11 +17,11 @@
 #define LV_ATTRIBUTE_MEM_ALIGN
 #endif
 
-#ifndef LV_ATTRIBUTE_IMG_NEUTRAL
-#define LV_ATTRIBUTE_IMG_NEUTRAL
+#ifndef LV_ATTRIBUTE_IMG_ANGRY
+#define LV_ATTRIBUTE_IMG_ANGRY
 #endif
 
-const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_NEUTRAL uint8_t neutral_map[] = {
+const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_ANGRY uint8_t angry_map[] = {
     0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0xf0, 0x00, 0xf0, 0x00, 0xc4, 0x00, 0x00, 
     0xfa, 0xd4, 0xd4, 0x9c, 0x99, 0x9c, 0xfa, 0xef, 0xf0, 0xcd, 0xa2, 0xa4, 0x06, 
     0x04, 0x05, 0x64, 0x5a, 0x5c, 0xd0, 0xcf, 0xd1, 0x9c, 0x59, 0x5f, 0xf9, 0xca, 
@@ -828,10 +828,12 @@ const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_NEUTRAL u
     0x00, 0x3b
 };
 
-const lv_img_dsc_t neutral = {
-  .header.cf = LV_COLOR_FORMAT_RAW,
+const lv_img_dsc_t angry = {
+  .header.cf = LV_IMG_CF_RAW_CHROMA_KEYED,
+  .header.always_zero = 0,
+  .header.reserved = 0,
   .header.w = 240,
   .header.h = 240,
   .data_size = 10441,
-  .data = neutral_map,
+  .data = angry_map,
 };

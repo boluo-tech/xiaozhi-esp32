@@ -10,22 +10,17 @@
 #include <vector>
 
 #include "assets/lang_config.h"
+#include "assets/emotion_config.h"
 #include "board.h"
 #include "settings.h"
 
-#define TAG "LcdDisplay"
-
+// 包含GIF表情资源文件
 #if CONFIG_USE_GIF_EMOTION_STYLE
-LV_IMG_DECLARE(neutral);
-LV_IMG_DECLARE(relaxed);
-LV_IMG_DECLARE(sad);
-#else
-LV_IMG_DECLARE(neutral);
-LV_IMG_DECLARE(relaxed);
-LV_IMG_DECLARE(sad);
+#include "assets/gif_resources.h"
 #endif
 
-
+#define TAG "LcdDisplay"
+ 
 // 深色主题颜色定义
 #define DARK_BACKGROUND_COLOR       lv_color_hex(0x000000)     // 纯黑色背景
 #define DARK_TEXT_COLOR             lv_color_white()           // 白色文本
@@ -712,47 +707,36 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         const char* text;
     };
 
-    static const std::vector<Emotion> emotions = {
-        {&neutral, "neutral"},
-        {&relaxed, "relaxed"},
-        {&sad, "sad"}
-    };
-
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-                           [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
+    // 使用gif_resources.h中定义的资源
+    static const auto emotions = GetGifEmotionResources();
 
     DisplayLockGuard lock(this);
     if (emotion_gif == nullptr) {
         return;
     }
 
-    if (it != emotions.end()) {
-        lv_gif_set_src(emotion_gif, it->gif);
-    } else {
-        lv_gif_set_src(emotion_gif, &neutral);
-    }
+    // 使用gif_resources.h中的查找函数
+    const lv_img_dsc_t* gif_resource = FindGifEmotionResource(emotion);
+    lv_gif_set_src(emotion_gif, gif_resource);
 #else
     struct Emotion {
         const char* icon;
         const char* text;
     };
 
-    static const std::vector<Emotion> emotions = {
-        {"😶", "neutral"},  {"😌", "relaxed"}, {"😔", "sad"}};
-
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-                           [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
+    // 使用emotion_config.h中定义的配置
+    static const auto& emotions = GetAllEmotionConfigs();
 
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
 
+    // 使用emotion_config.h中的查找函数
+    const EmotionConfig* config = FindEmotionConfig(emotion);
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    if (it != emotions.end()) {
-        lv_label_set_text(emotion_label_, it->icon);
+    if (config != nullptr) {
+        lv_label_set_text(emotion_label_, config->emoji);
     } else {
         lv_label_set_text(emotion_label_, "😶");
     }

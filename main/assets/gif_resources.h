@@ -7,9 +7,15 @@
 #define DECLARE_GIF_EMOTION(name) LV_IMG_DECLARE(name)
 
 // 动态声明所有GIF表情资源
-// 当前支持 3 个表情
+// 当前支持 9 个表情
+DECLARE_GIF_EMOTION(angry);
+DECLARE_GIF_EMOTION(crying);
+DECLARE_GIF_EMOTION(embarrassed);
+DECLARE_GIF_EMOTION(funny);
+DECLARE_GIF_EMOTION(happy);
+DECLARE_GIF_EMOTION(laughing);
+DECLARE_GIF_EMOTION(loving);
 DECLARE_GIF_EMOTION(neutral);
-DECLARE_GIF_EMOTION(relaxed);
 DECLARE_GIF_EMOTION(sad);
 
 // GIF资源映射结构体
@@ -21,10 +27,16 @@ struct GifEmotionResource {
 // 获取GIF资源映射表
 inline std::vector<GifEmotionResource> GetGifEmotionResources() {
     std::vector<GifEmotionResource> resources;
-    resources.reserve(3);
+    resources.reserve(9);
     
+    resources.push_back(GifEmotionResource{"angry", &angry});
+    resources.push_back(GifEmotionResource{"crying", &crying});
+    resources.push_back(GifEmotionResource{"embarrassed", &embarrassed});
+    resources.push_back(GifEmotionResource{"funny", &funny});
+    resources.push_back(GifEmotionResource{"happy", &happy});
+    resources.push_back(GifEmotionResource{"laughing", &laughing});
+    resources.push_back(GifEmotionResource{"loving", &loving});
     resources.push_back(GifEmotionResource{"neutral", &neutral});
-    resources.push_back(GifEmotionResource{"relaxed", &relaxed});
     resources.push_back(GifEmotionResource{"sad", &sad});
     
     return resources;
