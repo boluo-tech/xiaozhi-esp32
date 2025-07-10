@@ -369,6 +369,14 @@ config USE_WECHAT_MESSAGE_STYLE
     help
         使用微信聊天界面风格
 
+config USE_GIF_EMOTION_STYLE
+    bool "Enable GIF Emotion Style"
+    default n
+    select LV_USE_GIF
+    select LV_GIF_CACHE_DECODE_DATA
+    help
+        使用GIF表情风格显示，需要LVGL GIF支持
+
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
     default n

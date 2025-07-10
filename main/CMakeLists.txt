@@ -226,6 +226,12 @@ elseif(CONFIG_LANGUAGE_JA_JP)
     set(LANG_DIR "ja-JP")
 endif()
 
+# 启用 GIF 表情时添加 GIF 源文件
+if(CONFIG_USE_GIF_EMOTION_STYLE)
+    file(GLOB GIF_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/assets/gif/*.c)
+    list(APPEND SOURCES ${GIF_SOURCES})
+endif()
+
 # 定义生成路径
 set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")

@@ -14,7 +14,7 @@ source $IDF_PATH/export.sh
 
 release_name='doro'
 output_dir='tmp_releases'  # 默认输出目录
-skip_conversion=0  # 0表示不跳过图片转换步骤，1表示跳过
+skip_conversion=1  # 0表示不跳过图片转换步骤，1表示跳过
 image_input_dir="" # 图片输入目录
 do_build=1 # 1表示编译
 do_package=1 # 1表示打包
