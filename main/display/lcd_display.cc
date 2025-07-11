@@ -111,8 +111,9 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    port_cfg.task_priority = 1;
-    port_cfg.timer_period_ms = 50;
+    port_cfg.task_priority = 2;  // 提高LVGL优先级
+    port_cfg.timer_period_ms = 200;  // 进一步降低渲染频率
+    // port_cfg.task_core_id = 0;   // 固定在CPU0 - 这个成员不存在
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD screen");
@@ -268,7 +269,6 @@ void LcdDisplay::Unlock() {
     lvgl_port_unlock();
 }
 
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
@@ -294,6 +294,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
     lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
     
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
     /* Content - Chat area */
     content_ = lv_obj_create(container_);
     lv_obj_set_style_radius(content_, 0, 0);
@@ -314,6 +315,57 @@ void LcdDisplay::SetupUI() {
 
     // We'll create chat messages dynamically in SetChatMessage
     chat_message_label_ = nullptr;
+#elif CONFIG_USE_GIF_EMOTION_STYLE
+    // 创建一个容器来放置 GIF 和文本
+    lv_obj_t* overlay_container = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(overlay_container, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(overlay_container, LV_HOR_RES, LV_HOR_RES);
+    lv_obj_set_style_bg_opa(overlay_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(overlay_container, 0, 0);
+    lv_obj_center(overlay_container);  // 将容器居中
+
+    emotion_gif = lv_gif_create(overlay_container);
+    int gif_size = LV_HOR_RES;  // GIF 大小设置为屏幕宽度
+    lv_obj_set_size(emotion_gif, gif_size, gif_size);
+    lv_obj_set_style_border_width(emotion_gif, 0, 0);
+    lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_TRANSP, 0);
+    // 将 GIF 向上移动，通过设置偏移量
+    lv_obj_align(emotion_gif, LV_ALIGN_TOP_MID, 0, -20);  // 从顶部向下偏移10像素
+
+    // 在GIF下方添加对话字幕显示
+    chat_message_label_ = lv_label_create(overlay_container);
+    lv_label_set_text(chat_message_label_, "");
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
+    // 将文本标签放置在GIF下方
+    lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, -10); // 距离底部10像素
+#else
+    /* Content */
+    content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_radius(content_, 0, 0);
+    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_flex_grow(content_, 1);
+    lv_obj_set_style_pad_all(content_, 5, 0);
+    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
+
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
+
+    emotion_label_ = lv_label_create(content_);
+    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
+    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
+    lv_label_set_text(emotion_label_, "😶");
+
+    chat_message_label_ = lv_label_create(content_);
+    lv_label_set_text(chat_message_label_, "");
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
+#endif
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -569,135 +621,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // Store reference to the latest message label
     chat_message_label_ = msg_text;
 }
-#else
-void LcdDisplay::SetupUI() {
-    DisplayLockGuard lock(this);
-
-    auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
-
-    /* Container */
-    container_ = lv_obj_create(screen);
-    lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(container_, 0, 0);
-    lv_obj_set_style_border_width(container_, 0, 0);
-    lv_obj_set_style_pad_row(container_, 0, 0);
-    lv_obj_set_style_bg_color(container_, current_theme.background, 0);
-    lv_obj_set_style_border_color(container_, current_theme.border, 0);
-
-    /* Status bar */
-    status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
-    lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
-    lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
-
-#if CONFIG_USE_GIF_EMOTION_STYLE
-    // 创建一个容器来放置 GIF 和文本
-    lv_obj_t* overlay_container = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(overlay_container, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(overlay_container, LV_HOR_RES, LV_HOR_RES);
-    lv_obj_set_style_bg_opa(overlay_container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(overlay_container, 0, 0);
-    lv_obj_center(overlay_container);  // 将容器居中
-
-    emotion_gif = lv_gif_create(overlay_container);
-    int gif_size = LV_HOR_RES;  // GIF 大小设置为屏幕宽度
-    lv_obj_set_size(emotion_gif, gif_size, gif_size);
-    lv_obj_set_style_border_width(emotion_gif, 0, 0);
-    lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_TRANSP, 0);
-    // 将 GIF 向上移动，通过设置偏移量
-    lv_obj_align(emotion_gif, LV_ALIGN_TOP_MID, 0, -20);  // 从顶部向下偏移10像素
-
-    // 在GIF下方添加对话字幕显示
-    chat_message_label_ = lv_label_create(overlay_container);
-    lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
-    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-    // 将文本标签放置在GIF下方
-    lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, -10); // 距离底部10像素
-#else
-    /* Content */
-    content_ = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
-    lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_style_pad_all(content_, 5, 0);
-    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
-
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
-
-    emotion_label_ = lv_label_create(content_);
-    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
-    lv_label_set_text(emotion_label_, "😶");
-
-    chat_message_label_ = lv_label_create(content_);
-    lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
-    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-#endif
-
-    /* Status bar */
-    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_all(status_bar_, 0, 0);
-    lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_column(status_bar_, 0, 0);
-    lv_obj_set_style_pad_left(status_bar_, 2, 0);
-    lv_obj_set_style_pad_right(status_bar_, 2, 0);
-
-    network_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
-
-    notification_label_ = lv_label_create(status_bar_);
-    lv_obj_set_flex_grow(notification_label_, 1);
-    lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
-    lv_label_set_text(notification_label_, "");
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
-
-    status_label_ = lv_label_create(status_bar_);
-    lv_obj_set_flex_grow(status_label_, 1);
-    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);  // 保持居中对齐
-    lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
-    lv_obj_set_style_pad_left(status_label_, -10, 0);  // 向左偏移10像素
-    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
-    mute_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
-
-    battery_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
-
-    low_battery_popup_ = lv_obj_create(screen);
-    lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
-    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    low_battery_label_ = lv_label_create(low_battery_popup_);
-    lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
-    lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
-    lv_obj_center(low_battery_label_);
-    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-}
-#endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
 #if CONFIG_USE_GIF_EMOTION_STYLE

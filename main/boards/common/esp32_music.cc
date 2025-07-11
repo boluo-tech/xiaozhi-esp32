@@ -434,8 +434,9 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     // 配置线程栈大小以避免栈溢出
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
     cfg.stack_size = 8192;  // 8KB栈大小
-    cfg.prio = 5;           // 中等优先级
+    cfg.prio = 2;           // 降低到最低优先级，不抢占音频处理
     cfg.thread_name = "audio_stream";
+    cfg.pin_to_core = 1;    // 移到CPU1，但使用最低优先级
     esp_pthread_set_cfg(&cfg);
     
     // 开始下载线程
@@ -683,6 +684,9 @@ void Esp32Music::PlayAudioStream() {
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
         }
+        
+        // 添加短暂延时，减少CPU占用
+        vTaskDelay(pdMS_TO_TICKS(2));
         
         // 设备状态检查通过，显示当前播放的歌名
         if (!song_name_displayed_ && !current_song_name_.empty()) {
