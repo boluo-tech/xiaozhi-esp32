@@ -195,6 +195,8 @@ elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
     set(BOARD_TYPE "electron-bot")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_CAM)
     set(BOARD_TYPE "bread-compact-wifi-s3cam")
+elseif(CONFIG_BOARD_TYPE_DU_DU_S3_TOUCH_1_85)
+    set(BOARD_TYPE "dudu-s3-touch-1.85")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
