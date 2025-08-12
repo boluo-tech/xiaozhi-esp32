@@ -16,7 +16,7 @@
 
 #define TAG "MCP"
 
-#define DEFAULT_TOOLCALL_STACK_SIZE 6144
+#define DEFAULT_TOOLCALL_STACK_SIZE 16384
 
 McpServer::McpServer() {
 }
@@ -100,6 +100,60 @@ void McpServer::AddCommonTools() {
                 }
                 auto question = properties["question"].value<std::string>();
                 return camera->Explain(question);
+            });
+    }
+
+    auto music = board.GetMusic();
+    if (music) {
+        AddTool("self.music.play_song",
+            "播放指定的歌曲。当用户要求播放音乐时使用此工具，会自动获取歌曲详情并开始流式播放。\n"
+            "参数:\n"
+            "  `song_name`: 要播放的歌曲名称。\n"
+            "返回:\n"
+            "  播放状态信息，不需确认，立刻播放歌曲。",
+            PropertyList({
+                Property("song_name", kPropertyTypeString)
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                auto song_name = properties["song_name"].value<std::string>();
+                if (!music->Download(song_name)) {
+                    return "{\"success\": false, \"message\": \"获取音乐资源失败\"}";
+                }
+                auto download_result = music->GetDownloadResult();
+                ESP_LOGD(TAG, "Music details result: %s", download_result.c_str());
+                return true;
+            });
+            
+        AddTool("self.music.play_playlist",
+            "播放指定的歌单或音乐。当用户说'播放歌单'、'播放音乐'、'播放周杰伦的歌单'或类似请求时，必须立即调用此工具。\n"
+            "参数:\n"
+            "  `playlist_name`: 要播放的歌单名称（可选）。\n"
+            "  `artist_name`: 要播放的歌手名称（可选）。\n"
+            "说明:\n"
+            "  如果用户没有指定歌单名或歌手名，可以尝试播放默认歌单或推荐歌单。\n"
+            "  播放状态信息，不需确认，立刻播放歌单。\n"
+            "  重要：当用户要求播放音乐时，不要只是回复文字，必须调用此工具来实际播放音乐。",
+            PropertyList({
+                Property("playlist_name", kPropertyTypeString, ""),
+                Property("artist_name", kPropertyTypeString, "")
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                std::string playlist_name = "";
+                std::string artist_name = "";
+                if (properties["playlist_name"].type() == kPropertyTypeString && !properties["playlist_name"].value<std::string>().empty()) {
+                    playlist_name = properties["playlist_name"].value<std::string>();
+                }
+                if (properties["artist_name"].type() == kPropertyTypeString && !properties["artist_name"].value<std::string>().empty()) {
+                    artist_name = properties["artist_name"].value<std::string>();
+                }
+                std::string query = !playlist_name.empty() ? playlist_name : artist_name;
+                if (query.empty()) {
+                    query = "流行金曲"; // 默认歌单
+                }
+                if (!music->PlayPlaylist(query)) {
+                    return "{\"success\": false, \"message\": \"获取歌单失败或歌单为空\"}";
+                }
+                return "{\"success\": true, \"message\": \"开始播放歌单: " + query + "\"}";
             });
     }
 

@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "dudu-s3-touch-1.85",
+            "sdkconfig_append": []
+        }
+    ]
+}

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>歌单播放流程图预览</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #007acc;
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+        h3 {
+            color: #666;
+            margin-top: 30px;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 5px;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border-left: 4px solid #007acc;
+        }
+        code {
+            background: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .note {
+            background: #e7f3ff;
+            border-left: 4px solid #007acc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 歌单播放流程图</h1>
+        
+        <h2>整体架构图</h2>
+        <div class="mermaid">
+graph TD
+    A[用户请求播放歌单] --> B[MCP协议接收请求]
+    B --> C[调用 self.music.play_playlist]
+    C --> D[Esp32Music::PlayPlaylist]
+    D --> E[停止当前播放]
+    E --> F[获取歌单列表]
+    F --> G{歌单获取成功?}
+    G -->|否| H[返回失败]
+    G -->|是| I[创建FreeRTOS任务]
+    I --> J[开始歌单循环播放]
+    J --> K[歌单播放完成]
+        </div>
+
+        <h2>歌单获取流程</h2>
+        <div class="mermaid">
+sequenceDiagram
+    participant U as 用户
+    participant MCP as MCP服务器
+    participant Music as Esp32Music
+    participant Server as 音乐服务器
+    
+    U->>MCP: 播放歌单请求
+    MCP->>Music: PlayPlaylist(query)
+    Music->>Music: Stop(true) - 停止当前播放
+    Music->>Music: playlist_.clear() - 清空歌单
+    Music->>Music: current_playlist_index_ = 0 - 重置索引
+    
+    Music->>Server: GET /playlist?query=歌单名
+    Server-->>Music: JSON响应 {success: true, playlist: [...]}
+    
+    Music->>Music: 解析JSON，填充playlist_数组
+    Music->>Music: 检查歌单是否为空
+    
+    alt 歌单为空
+        Music-->>MCP: 返回失败
+    else 歌单不为空
+        Music->>Music: 创建FreeRTOS任务
+        Music-->>MCP: 返回成功
+    end
+        </div>
+
+        <h2>歌单播放主循环</h2>
+        <div class="mermaid">
+flowchart TD
+    A[开始歌单播放任务] --> B[is_playing_ = true]
+    B --> C{current_playlist_index_ < playlist_.size()?}
+    C -->|否| D[歌单播放完成]
+    C -->|是| E[获取当前歌曲名]
+    E --> F[调用Download(song)]
+    F --> G{下载成功?}
+    G -->|否| H[++current_playlist_index_]
+    H --> C
+    G -->|是| I[调用PlayInPlaylist()]
+    I --> J{播放启动成功?}
+    J -->|否| H
+    J -->|是| K[等待设备状态为Idle]
+    K --> L[开始播放监控循环]
+    L --> M{歌曲播放完成?}
+    M -->|否| L
+    M -->|是| N[调用Stop(false)]
+    N --> O[CleanupAndReset()]
+    O --> P[等待资源释放]
+    P --> Q[++current_playlist_index_]
+    Q --> C
+        </div>
+
+        <h2>单首歌曲播放流程</h2>
+        <div class="mermaid">
+sequenceDiagram
+    participant Task as 歌单任务
+    participant Music as Esp32Music
+    participant Download as 下载线程
+    participant Play as 播放线程
+    participant App as Application
+    participant Codec as 音频编解码器
+    
+    Task->>Music: Download(song_name)
+    Music->>Music: 请求 /stream_pcm 接口
+    Music->>Music: 解析音频URL和歌词URL
+    Music->>Download: 启动下载线程
+    Music->>Play: 启动播放线程
+    
+    Download->>Download: 下载音频数据
+    Download->>Music: 填充音频缓冲区
+    Play->>Music: 从缓冲区读取数据
+    Play->>Music: MP3解码
+    Play->>App: 发送PCM数据
+    App->>Codec: 音频输出
+    
+    Note over Play: 监控播放状态
+    Play->>Task: 播放完成信号
+    Task->>Music: Stop(false)
+    Music->>Download: 停止下载
+    Music->>Play: 停止播放
+    Music->>Music: 清理资源
+        </div>
+
+        <h2>状态管理和错误处理</h2>
+        <div class="mermaid">
+stateDiagram-v2
+    [*] --> 空闲状态
+    空闲状态 --> 歌单播放中: PlayPlaylist()
+    歌单播放中 --> 单曲下载中: Download()
+    单曲下载中 --> 单曲播放中: PlayInPlaylist()
+    单曲播放中 --> 单曲播放中: 继续播放
+    单曲播放中 --> 单曲播放完成: 歌曲结束
+    单曲播放完成 --> 歌单播放中: 下一首歌曲
+    单曲播放中 --> 歌单播放中: 播放失败，跳过
+    单曲下载中 --> 歌单播放中: 下载失败，跳过
+    歌单播放中 --> 空闲状态: Stop(true) 或 歌单完成
+    
+    note right of 单曲播放中
+        监控设备状态
+        检查音频缓冲区
+        处理语音打断
+    end note
+    
+    note right of 歌单播放中
+        维护播放索引
+        管理播放状态
+        处理用户中断
+    end note
+        </div>
+
+        <h2>资源管理流程</h2>
+        <div class="mermaid">
+flowchart LR
+    A[歌曲播放完成] --> B[Stop(false)]
+    B --> C[停止下载线程]
+    B --> D[停止播放线程]
+    B --> E[清理MP3解码器]
+    
+    C --> F[CleanupAndReset]
+    D --> F
+    E --> F
+    
+    F --> G[清空音频缓冲区]
+    F --> H[清理歌词数据]
+    F --> I[释放内存]
+    F --> J[等待TCP连接关闭]
+    
+    G --> K[准备下一首歌曲]
+    H --> K
+    I --> K
+    J --> K
+        </div>
+
+        <div class="note">
+            <strong>💡 提示：</strong>
+            <ul>
+                <li>如果图表没有正确显示，请刷新页面</li>
+                <li>确保网络连接正常，因为需要加载 Mermaid.js 库</li>
+                <li>可以在浏览器开发者工具中查看是否有错误信息</li>
+            </ul>
+        </div>
+
+        <h2>关键接口说明</h2>
+        
+        <h3>MCP协议接口</h3>
+        <pre><code>{
+  "method": "tools/call",
+  "params": {
+    "name": "self.music.play_playlist",
+    "arguments": {
+      "playlist_name": "流行金曲",
+      "artist_name": "周杰伦"
+    }
+  }
+}</code></pre>
+
+        <h3>服务器API接口</h3>
+        <pre><code>GET /playlist?query=歌单名或歌手名
+Response: {
+  "success": true,
+  "playlist": ["歌曲1", "歌曲2", "歌曲3"]
+}</code></pre>
+
+        <h3>音频流接口</h3>
+        <pre><code>GET /stream_pcm?song=歌曲名
+Response: {
+  "success": true,
+  "audio_url": "/audio/xxx.mp3?token=xxx",
+  "lyric_url": "/lyric/xxx.lrc?token=xxx"
+}</code></pre>
+
+        <h2>性能优化点</h2>
+        <ul>
+            <li><strong>内存管理</strong>：及时清理音频缓冲区和歌词数据</li>
+            <li><strong>TCP连接</strong>：等待连接完全关闭，避免资源泄漏</li>
+            <li><strong>任务管理</strong>：使用FreeRTOS任务替代pthread，更好的资源控制</li>
+            <li><strong>状态监控</strong>：智能处理设备状态变化，避免不必要的停止</li>
+            <li><strong>错误恢复</strong>：自动跳过失败的歌曲，保证歌单连续性</li>
+        </ul>
+
+        <h2>调试信息</h2>
+        <p><strong>关键日志标签：</strong></p>
+        <ul>
+            <li><code>[Playlist]</code>：歌单播放相关日志</li>
+            <li><code>Esp32Music</code>：音乐播放核心日志</li>
+            <li><code>MCP</code>：协议处理日志</li>
+        </ul>
+
+        <p><strong>重要调试信息：</strong></p>
+        <ul>
+            <li>歌单索引变化：<code>current_playlist_index_</code></li>
+            <li>播放状态：<code>is_playing_</code>, <code>is_downloading_</code></li>
+            <li>缓冲区状态：<code>buffer_size_</code></li>
+            <li>设备状态：<code>DeviceState</code></li>
+        </ul>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            },
+            sequence: {
+                useMaxWidth: true,
+                diagramMarginX: 50,
+                diagramMarginY: 10
+            },
+            state: {
+                useMaxWidth: true
+            }
+        });
+    </script>
+</body>
+</html> 
