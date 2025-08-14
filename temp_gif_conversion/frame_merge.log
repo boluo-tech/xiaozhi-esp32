@@ -1,0 +1,354 @@
+INFO - Original embarrassed_0 with size 34782 bytes
+INFO - Original embarrassed_1 with size 34058 bytes
+INFO - Original embarrassed_2 with size 33290 bytes
+INFO - Original embarrassed_3 with size 32942 bytes
+INFO - Original embarrassed_4 with size 31106 bytes
+INFO - Original embarrassed_5 with size 30468 bytes
+INFO - Original embarrassed_6 with size 29770 bytes
+INFO - Original embarrassed_7 with size 29514 bytes
+INFO - Original embarrassed_8 with size 36494 bytes
+INFO - Original embarrassed_9 with size 32944 bytes
+INFO - Original embarrassed_10 with size 29112 bytes
+INFO - Original embarrassed_11 with size 32630 bytes
+INFO - Original embarrassed_12 with size 30122 bytes
+INFO - Original embarrassed_13 with size 31774 bytes
+INFO - Original embarrassed_14 with size 33118 bytes
+INFO - Original embarrassed_15 with size 30772 bytes
+INFO - Original embarrassed_16 with size 31364 bytes
+INFO - Original embarrassed_17 with size 34490 bytes
+INFO - Original embarrassed_18 with size 33102 bytes
+INFO - Original embarrassed_19 with size 30596 bytes
+INFO - Original embarrassed_20 with size 32306 bytes
+INFO - Original embarrassed_21 with size 30138 bytes
+INFO - Original embarrassed_22 with size 28424 bytes
+INFO - Original embarrassed_23 with size 28862 bytes
+INFO - Original embarrassed_24 with size 35490 bytes
+INFO - Original embarrassed_25 with size 36684 bytes
+INFO - Original embarrassed_26 with size 32942 bytes
+INFO - [1] frame_data: 0x00000000 (34784)
+INFO - [2] frame_data: 0x000087e0 (34060)
+INFO - [3] frame_data: 0x00010cec (33292)
+INFO - [4] frame_data: 0x00018ef8 (32944)
+INFO - [5] frame_data: 0x00020fa8 (31108)
+INFO - [6] frame_data: 0x0002892c (30470)
+INFO - [7] frame_data: 0x00030032 (29772)
+INFO - [8] frame_data: 0x0003747e (29516)
+INFO - [9] frame_data: 0x0003e7ca (36496)
+INFO - [10] frame_data: 0x0004765a (32946)
+INFO - [11] frame_data: 0x0004f70c (29114)
+INFO - [12] frame_data: 0x000568c6 (32632)
+INFO - [13] frame_data: 0x0005e83e (30124)
+INFO - [14] frame_data: 0x00065dea (31776)
+INFO - [15] frame_data: 0x0006da0a (33120)
+INFO - [16] frame_data: 0x00075b6a (30774)
+INFO - [17] frame_data: 0x0007d3a0 (31366)
+INFO - [18] frame_data: 0x00084e26 (34492)
+INFO - [19] frame_data: 0x0008d4e2 (33104)
+INFO - [20] frame_data: 0x00095632 (30598)
+INFO - [21] frame_data: 0x0009cdb8 (32308)
+INFO - [22] frame_data: 0x000a4bec (30140)
+INFO - [23] frame_data: 0x000ac1a8 (28426)
+INFO - [24] frame_data: 0x000b30b2 (28864)
+INFO - [25] frame_data: 0x000ba172 (35492)
+INFO - [26] frame_data: 0x000c2c16 (36686)
+INFO - [27] frame_data: 0x000cbb64 (32944)
+INFO - 
+Successfully packed 27 .sbmp files into ./output/embarrassed.aaf
+INFO - Total size: 867576 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 216 bytes
+INFO - Data size: 867348 bytes
+INFO - Original loving_0 with size 19006 bytes
+INFO - Original loving_1 with size 18898 bytes
+INFO - Original loving_2 with size 19060 bytes
+INFO - Original loving_3 with size 19150 bytes
+INFO - Original loving_4 with size 19022 bytes
+INFO - Original loving_5 with size 19346 bytes
+INFO - Original loving_6 with size 19412 bytes
+INFO - Original loving_7 with size 19350 bytes
+INFO - Original loving_8 with size 19362 bytes
+INFO - Original loving_9 with size 19298 bytes
+INFO - Original loving_10 with size 19522 bytes
+INFO - Original loving_11 with size 19178 bytes
+INFO - Original loving_12 with size 18880 bytes
+INFO - Original loving_13 with size 19182 bytes
+INFO - [1] frame_data: 0x00000000 (19008)
+INFO - [2] frame_data: 0x00004a40 (18900)
+INFO - [3] frame_data: 0x00009414 (19062)
+INFO - [4] frame_data: 0x0000de8a (19152)
+INFO - [5] frame_data: 0x0001295a (19024)
+INFO - [6] frame_data: 0x000173aa (19348)
+INFO - [7] frame_data: 0x0001bf3e (19414)
+INFO - [8] frame_data: 0x00020b14 (19352)
+INFO - [9] frame_data: 0x000256ac (19364)
+INFO - [10] frame_data: 0x0002a250 (19300)
+INFO - [11] frame_data: 0x0002edb4 (19524)
+INFO - [12] frame_data: 0x000339f8 (19180)
+INFO - [13] frame_data: 0x000384e4 (18882)
+INFO - [14] frame_data: 0x0003cea6 (19184)
+INFO - 
+Successfully packed 14 .sbmp files into ./output/loving.aaf
+INFO - Total size: 268818 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 112 bytes
+INFO - Data size: 268694 bytes
+INFO - Original crying_0 with size 28332 bytes
+INFO - Original crying_1 with size 27932 bytes
+INFO - Original crying_2 with size 29726 bytes
+INFO - Original crying_3 with size 29284 bytes
+INFO - Original crying_4 with size 28566 bytes
+INFO - Original crying_5 with size 28792 bytes
+INFO - Original crying_6 with size 27986 bytes
+INFO - Original crying_7 with size 27732 bytes
+INFO - Original crying_8 with size 28946 bytes
+INFO - Original crying_9 with size 29130 bytes
+INFO - Original crying_10 with size 29036 bytes
+INFO - Original crying_11 with size 29030 bytes
+INFO - Original crying_12 with size 28958 bytes
+INFO - Original crying_13 with size 28072 bytes
+INFO - [1] frame_data: 0x00000000 (28334)
+INFO - [2] frame_data: 0x00006eae (27934)
+INFO - [3] frame_data: 0x0000dbcc (29728)
+INFO - [4] frame_data: 0x00014fec (29286)
+INFO - [5] frame_data: 0x0001c252 (28568)
+INFO - [6] frame_data: 0x000231ea (28794)
+INFO - [7] frame_data: 0x0002a264 (27988)
+INFO - [8] frame_data: 0x00030fb8 (27734)
+INFO - [9] frame_data: 0x00037c0e (28948)
+INFO - [10] frame_data: 0x0003ed22 (29132)
+INFO - [11] frame_data: 0x00045eee (29038)
+INFO - [12] frame_data: 0x0004d05c (29032)
+INFO - [13] frame_data: 0x000541c4 (28960)
+INFO - [14] frame_data: 0x0005b2e4 (28074)
+INFO - 
+Successfully packed 14 .sbmp files into ./output/crying.aaf
+INFO - Total size: 401674 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 112 bytes
+INFO - Data size: 401550 bytes
+INFO - Original happy_0 with size 39798 bytes
+INFO - Original happy_1 with size 39206 bytes
+INFO - Original happy_2 with size 39008 bytes
+INFO - Original happy_3 with size 38176 bytes
+INFO - Original happy_4 with size 38376 bytes
+INFO - Original happy_5 with size 39734 bytes
+INFO - Original happy_6 with size 40096 bytes
+INFO - Original happy_7 with size 39884 bytes
+INFO - Original happy_8 with size 39780 bytes
+INFO - Original happy_9 with size 40508 bytes
+INFO - Original happy_10 with size 40074 bytes
+INFO - Original happy_11 with size 43296 bytes
+INFO - Original happy_12 with size 37512 bytes
+INFO - Original happy_13 with size 41580 bytes
+INFO - Original happy_14 with size 39884 bytes
+INFO - [1] frame_data: 0x00000000 (39800)
+INFO - [2] frame_data: 0x00009b78 (39208)
+INFO - [3] frame_data: 0x000134a0 (39010)
+INFO - [4] frame_data: 0x0001cd02 (38178)
+INFO - [5] frame_data: 0x00026224 (38378)
+INFO - [6] frame_data: 0x0002f80e (39736)
+INFO - [7] frame_data: 0x00039346 (40098)
+INFO - [8] frame_data: 0x00042fe8 (39886)
+INFO - [9] frame_data: 0x0004cbb6 (39782)
+INFO - [10] frame_data: 0x0005671c (40510)
+INFO - [11] frame_data: 0x0006055a (40076)
+INFO - [12] frame_data: 0x0006a1e6 (43298)
+INFO - [13] frame_data: 0x00074b08 (37514)
+INFO - [14] frame_data: 0x0007dd92 (41582)
+INFO - [15] frame_data: 0x00088000 (39886)
+INFO - 
+Successfully packed 15 .sbmp files into ./output/happy.aaf
+INFO - Total size: 597074 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 120 bytes
+INFO - Data size: 596942 bytes
+INFO - Original neutral_0 with size 32042 bytes
+INFO - Original neutral_1 with size 32474 bytes
+INFO - Original neutral_2 with size 32128 bytes
+INFO - Original neutral_3 with size 32094 bytes
+INFO - Original neutral_4 with size 33302 bytes
+INFO - Original neutral_5 with size 31580 bytes
+INFO - Original neutral_6 with size 31608 bytes
+INFO - Original neutral_7 with size 29416 bytes
+INFO - Original neutral_8 with size 34808 bytes
+INFO - Original neutral_9 with size 34274 bytes
+INFO - [1] frame_data: 0x00000000 (32044)
+INFO - [2] frame_data: 0x00007d2c (32476)
+INFO - [3] frame_data: 0x0000fc08 (32130)
+INFO - [4] frame_data: 0x0001798a (32096)
+INFO - [5] frame_data: 0x0001f6ea (33304)
+INFO - [6] frame_data: 0x00027902 (31582)
+INFO - [7] frame_data: 0x0002f460 (31610)
+INFO - [8] frame_data: 0x00036fda (29418)
+INFO - [9] frame_data: 0x0003e2c4 (34810)
+INFO - [10] frame_data: 0x00046abe (34276)
+INFO - 
+Successfully packed 10 .sbmp files into ./output/neutral.aaf
+INFO - Total size: 323838 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 80 bytes
+INFO - Data size: 323746 bytes
+INFO - Original sad_0 with size 21724 bytes
+INFO - Original sad_1 with size 22988 bytes
+INFO - Original sad_2 with size 22604 bytes
+INFO - Original sad_3 with size 21932 bytes
+INFO - Original sad_4 with size 23892 bytes
+INFO - Original sad_5 with size 24626 bytes
+INFO - Original sad_6 with size 23932 bytes
+INFO - Original sad_7 with size 23432 bytes
+INFO - Original sad_8 with size 21942 bytes
+INFO - Original sad_9 with size 22740 bytes
+INFO - Original sad_10 with size 23334 bytes
+INFO - Original sad_11 with size 24652 bytes
+INFO - Original sad_12 with size 23998 bytes
+INFO - Original sad_13 with size 23460 bytes
+INFO - [1] frame_data: 0x00000000 (21726)
+INFO - [2] frame_data: 0x000054de (22990)
+INFO - [3] frame_data: 0x0000aeac (22606)
+INFO - [4] frame_data: 0x000106fa (21934)
+INFO - [5] frame_data: 0x00015ca8 (23894)
+INFO - [6] frame_data: 0x0001b9fe (24628)
+INFO - [7] frame_data: 0x00021a32 (23934)
+INFO - [8] frame_data: 0x000277b0 (23434)
+INFO - [9] frame_data: 0x0002d33a (21944)
+INFO - [10] frame_data: 0x000328f2 (22742)
+INFO - [11] frame_data: 0x000381c8 (23336)
+INFO - [12] frame_data: 0x0003dcf0 (24654)
+INFO - [13] frame_data: 0x00043d3e (24000)
+INFO - [14] frame_data: 0x00049afe (23462)
+INFO - 
+Successfully packed 14 .sbmp files into ./output/sad.aaf
+INFO - Total size: 325408 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 112 bytes
+INFO - Data size: 325284 bytes
+INFO - Original laughing_0 with size 65156 bytes
+INFO - Original laughing_1 with size 65124 bytes
+INFO - Original laughing_2 with size 65726 bytes
+INFO - Original laughing_3 with size 66642 bytes
+INFO - Original laughing_4 with size 66704 bytes
+INFO - Original laughing_5 with size 66990 bytes
+INFO - Original laughing_6 with size 67720 bytes
+INFO - Original laughing_7 with size 67916 bytes
+INFO - Original laughing_8 with size 67074 bytes
+INFO - Original laughing_9 with size 66080 bytes
+INFO - Original laughing_10 with size 65888 bytes
+INFO - Original laughing_11 with size 65414 bytes
+INFO - Original laughing_12 with size 64754 bytes
+INFO - Original laughing_13 with size 65502 bytes
+INFO - Original laughing_14 with size 66206 bytes
+INFO - Original laughing_15 with size 66600 bytes
+INFO - Original laughing_16 with size 67188 bytes
+INFO - Original laughing_17 with size 67784 bytes
+INFO - Original laughing_18 with size 67850 bytes
+INFO - Original laughing_19 with size 67124 bytes
+INFO - Original laughing_20 with size 66764 bytes
+INFO - Original laughing_21 with size 66976 bytes
+INFO - Original laughing_22 with size 65350 bytes
+INFO - Original laughing_23 with size 65290 bytes
+INFO - [1] frame_data: 0x00000000 (65158)
+INFO - [2] frame_data: 0x0000fe86 (65126)
+INFO - [3] frame_data: 0x0001fcec (65728)
+INFO - [4] frame_data: 0x0002fdac (66644)
+INFO - [5] frame_data: 0x00040200 (66706)
+INFO - [6] frame_data: 0x00050692 (66992)
+INFO - [7] frame_data: 0x00060c42 (67722)
+INFO - [8] frame_data: 0x000714cc (67918)
+INFO - [9] frame_data: 0x00081e1a (67076)
+INFO - [10] frame_data: 0x0009241e (66082)
+INFO - [11] frame_data: 0x000a2640 (65890)
+INFO - [12] frame_data: 0x000b27a2 (65416)
+INFO - [13] frame_data: 0x000c272a (64756)
+INFO - [14] frame_data: 0x000d241e (65504)
+INFO - [15] frame_data: 0x000e23fe (66208)
+INFO - [16] frame_data: 0x000f269e (66602)
+INFO - [17] frame_data: 0x00102ac8 (67190)
+INFO - [18] frame_data: 0x0011313e (67786)
+INFO - [19] frame_data: 0x00123a08 (67852)
+INFO - [20] frame_data: 0x00134314 (67126)
+INFO - [21] frame_data: 0x0014494a (66766)
+INFO - [22] frame_data: 0x00154e18 (66978)
+INFO - [23] frame_data: 0x001653ba (65352)
+INFO - [24] frame_data: 0x00175302 (65292)
+INFO - 
+Successfully packed 24 .sbmp files into ./output/laughing.aaf
+INFO - Total size: 1594074 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 192 bytes
+INFO - Data size: 1593870 bytes
+INFO - Original angry_0 with size 40174 bytes
+INFO - Original angry_1 with size 39714 bytes
+INFO - Original angry_2 with size 40096 bytes
+INFO - Original angry_3 with size 39552 bytes
+INFO - Original angry_4 with size 39274 bytes
+INFO - Original angry_5 with size 38180 bytes
+INFO - Original angry_6 with size 39834 bytes
+INFO - Original angry_7 with size 40230 bytes
+INFO - Original angry_8 with size 42442 bytes
+INFO - Original angry_9 with size 40810 bytes
+INFO - [1] frame_data: 0x00000000 (40176)
+INFO - [2] frame_data: 0x00009cf0 (39716)
+INFO - [3] frame_data: 0x00013814 (40098)
+INFO - [4] frame_data: 0x0001d4b6 (39554)
+INFO - [5] frame_data: 0x00026f38 (39276)
+INFO - [6] frame_data: 0x000308a4 (38182)
+INFO - [7] frame_data: 0x00039dca (39836)
+INFO - [8] frame_data: 0x00043966 (40232)
+INFO - [9] frame_data: 0x0004d68e (42444)
+INFO - [10] frame_data: 0x00057c5a (40812)
+INFO - 
+Successfully packed 10 .sbmp files into ./output/angry.aaf
+INFO - Total size: 400418 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 80 bytes
+INFO - Data size: 400326 bytes
+INFO - Original funny_0 with size 21816 bytes
+INFO - Original funny_1 with size 21658 bytes
+INFO - Original funny_2 with size 21794 bytes
+INFO - Original funny_3 with size 21468 bytes
+INFO - Original funny_4 with size 21378 bytes
+INFO - Original funny_5 with size 21558 bytes
+INFO - Original funny_6 with size 21382 bytes
+INFO - Original funny_7 with size 21212 bytes
+INFO - Original funny_8 with size 21316 bytes
+INFO - Original funny_9 with size 21270 bytes
+INFO - Original funny_10 with size 21486 bytes
+INFO - Original funny_11 with size 21334 bytes
+INFO - Original funny_12 with size 21444 bytes
+INFO - Original funny_13 with size 21626 bytes
+INFO - Original funny_14 with size 21650 bytes
+INFO - Original funny_15 with size 21694 bytes
+INFO - Original funny_16 with size 21666 bytes
+INFO - Original funny_17 with size 21850 bytes
+INFO - Original funny_18 with size 21512 bytes
+INFO - Original funny_19 with size 21664 bytes
+INFO - Original funny_20 with size 21722 bytes
+INFO - Original funny_21 with size 21574 bytes
+INFO - [1] frame_data: 0x00000000 (21818)
+INFO - [2] frame_data: 0x0000553a (21660)
+INFO - [3] frame_data: 0x0000a9d6 (21796)
+INFO - [4] frame_data: 0x0000fefa (21470)
+INFO - [5] frame_data: 0x000152d8 (21380)
+INFO - [6] frame_data: 0x0001a65c (21560)
+INFO - [7] frame_data: 0x0001fa94 (21384)
+INFO - [8] frame_data: 0x00024e1c (21214)
+INFO - [9] frame_data: 0x0002a0fa (21318)
+INFO - [10] frame_data: 0x0002f440 (21272)
+INFO - [11] frame_data: 0x00034758 (21488)
+INFO - [12] frame_data: 0x00039b48 (21336)
+INFO - [13] frame_data: 0x0003eea0 (21446)
+INFO - [14] frame_data: 0x00044266 (21628)
+INFO - [15] frame_data: 0x000496e2 (21652)
+INFO - [16] frame_data: 0x0004eb76 (21696)
+INFO - [17] frame_data: 0x00054036 (21668)
+INFO - [18] frame_data: 0x000594da (21852)
+INFO - [19] frame_data: 0x0005ea36 (21514)
+INFO - [20] frame_data: 0x00063e40 (21666)
+INFO - [21] frame_data: 0x000692e2 (21724)
+INFO - [22] frame_data: 0x0006e7be (21576)
+INFO - 
+Successfully packed 22 .sbmp files into ./output/funny.aaf
+INFO - Total size: 474306 bytes
+INFO - Header size: 8 bytes
+INFO - Table size: 176 bytes
+INFO - Data size: 474118 bytes

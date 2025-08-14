@@ -79,6 +79,9 @@ static void clock_tm_callback(void* user_data)
 
 static void InitializeAssets(mmap_assets_handle_t* assets_handle)
 {
+    ESP_LOGI(TAG, "Initializing assets with partition: assets_A, max_files: %d, checksum: 0x%x", 
+             MMAP_EMOJI_NORMAL_FILES, MMAP_EMOJI_NORMAL_CHECKSUM);
+    
     const mmap_assets_config_t assets_cfg = {
         .partition_label = "assets_A",
         .max_files = MMAP_EMOJI_NORMAL_FILES,
@@ -86,7 +89,12 @@ static void InitializeAssets(mmap_assets_handle_t* assets_handle)
         .flags = {.mmap_enable = true, .full_check = true}
     };
 
-    mmap_assets_new(&assets_cfg, assets_handle);
+    esp_err_t ret = mmap_assets_new(&assets_cfg, assets_handle);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Assets initialized successfully, handle: %p", *assets_handle);
+    } else {
+        ESP_LOGE(TAG, "Failed to initialize assets, error: %s", esp_err_to_name(ret));
+    }
 }
 
 static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engine_handle)
@@ -120,17 +128,33 @@ static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engin
 
 static void InitializeEyeAnimation(gfx_handle_t engine_handle, mmap_assets_handle_t assets_handle)
 {
+    ESP_LOGI(TAG, "Initializing eye animation");
+    
     obj_anim_eye = gfx_anim_create(engine_handle);
+    if (!obj_anim_eye) {
+        ESP_LOGE(TAG, "Failed to create eye animation object");
+        return;
+    }
+    ESP_LOGI(TAG, "Eye animation object created: %p", obj_anim_eye);
 
-    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_IDLE_ONE_AAF);
-    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_IDLE_ONE_AAF);
+    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_LISTEN_AAF);
+    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_LISTEN_AAF);
+    
+    ESP_LOGI(TAG, "Got idle animation data: %p, size: %zu", anim_data, anim_size);
+    
+    if (!anim_data || anim_size == 0) {
+        ESP_LOGE(TAG, "Invalid idle animation data");
+        return;
+    }
 
     gfx_anim_set_src(obj_anim_eye, anim_data, anim_size);
+    ESP_LOGI(TAG, "Set animation source successfully");
 
     gfx_obj_align(obj_anim_eye, GFX_ALIGN_LEFT_MID, 10, -20);
     gfx_anim_set_mirror(obj_anim_eye, true, (DISPLAY_WIDTH - (173 + 10) * 2));
     gfx_anim_set_segment(obj_anim_eye, 0, 0xFFFF, 20, false);
     gfx_anim_start(obj_anim_eye);
+    ESP_LOGI(TAG, "Eye animation started successfully");
 }
 
 static void InitializeFont(gfx_handle_t engine_handle, mmap_assets_handle_t assets_handle)
@@ -253,18 +277,32 @@ EmoteEngine::~EmoteEngine()
 
 void EmoteEngine::setEyes(int aaf, bool repeat, int fps)
 {
+    ESP_LOGI(TAG, "setEyes called: AAF=%d, repeat=%s, fps=%d", 
+             aaf, repeat ? "true" : "false", fps);
+    
     if (!engine_handle_) {
+        ESP_LOGE(TAG, "Engine handle is null, cannot set eyes");
         return;
     }
 
     const void* src_data = mmap_assets_get_mem(assets_handle_, aaf);
     size_t src_len = mmap_assets_get_size(assets_handle_, aaf);
+    
+    ESP_LOGI(TAG, "Got AAF data: src_data=%p, src_len=%zu", src_data, src_len);
+    
+    if (!src_data || src_len == 0) {
+        ESP_LOGE(TAG, "Invalid AAF data for ID %d", aaf);
+        return;
+    }
 
     Lock();
+    ESP_LOGI(TAG, "Setting animation source and starting animation");
     gfx_anim_set_src(obj_anim_eye, src_data, src_len);
     gfx_anim_set_segment(obj_anim_eye, 0, 0xFFFF, fps, repeat);
     gfx_anim_start(obj_anim_eye);
     Unlock();
+    
+    ESP_LOGI(TAG, "Animation set successfully");
 }
 
 void EmoteEngine::stopEyes()
@@ -326,7 +364,10 @@ EmoteDisplay::~EmoteDisplay() = default;
 
 void EmoteDisplay::SetEmotion(const char* emotion)
 {
+    ESP_LOGI(TAG, "SetEmotion called with: %s", emotion ? emotion : "null");
+    
     if (!engine_) {
+        ESP_LOGE(TAG, "Engine is null, cannot set emotion");
         return;
     }
 
@@ -337,21 +378,21 @@ void EmoteDisplay::SetEmotion(const char* emotion)
         {"funny",       {MMAP_EMOJI_NORMAL_FUNNY_AAF,         true,  20}},
         {"loving",      {MMAP_EMOJI_NORMAL_LOVING_AAF,        true,  20}},
         {"embarrassed", {MMAP_EMOJI_NORMAL_EMBARRASSED_AAF,   true,  20}},
-        {"confident",   {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
+        {"confident",   {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       true,  20}},
         {"delicious",   {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
         {"sad",         {MMAP_EMOJI_NORMAL_SAD_AAF,           true,  20}},
         {"crying",      {MMAP_EMOJI_NORMAL_CRYING_AAF,        true,  20}},
-        {"sleepy",      {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
-        {"silly",       {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
+        {"sleepy",      {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       true,  20}},
+        {"silly",       {MMAP_EMOJI_NORMAL_FUNNY_AAF,         true,  20}},
         {"angry",       {MMAP_EMOJI_NORMAL_ANGRY_AAF,         true,  20}},
-        {"surprised",   {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
-        {"shocked",     {MMAP_EMOJI_NORMAL_SHOCKED_ONE_AAF,   true,  20}},
-        {"thinking",    {MMAP_EMOJI_NORMAL_THINKING_ONE_AAF,  true,  20}},
+        {"surprised",   {MMAP_EMOJI_NORMAL_LAUGHING_AAF,      true,  20}},
+        {"shocked",     {MMAP_EMOJI_NORMAL_LAUGHING_AAF,      true,  20}},
+        {"thinking",    {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       true,  20}},
         {"winking",     {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
-        {"relaxed",     {MMAP_EMOJI_NORMAL_HAPPY_AAF,         true,  20}},
-        {"confused",    {MMAP_EMOJI_NORMAL_DIZZY_ONE_AAF,     true,  20}},
-        {"neutral",     {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       false, 20}},
-        {"idle",        {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
+        {"relaxed",     {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       true,  20}},
+        {"confused",    {MMAP_EMOJI_NORMAL_EMBARRASSED_AAF,   true,  20}},
+        {"neutral",     {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       true,  20}},
+        {"idle",        {MMAP_EMOJI_NORMAL_NEUTRAL_AAF,       false, 20}},
     };
 
     auto it = emotion_map.find(emotion);
@@ -359,7 +400,11 @@ void EmoteDisplay::SetEmotion(const char* emotion)
         int aaf = std::get<0>(it->second);
         bool repeat = std::get<1>(it->second);
         int fps = std::get<2>(it->second);
+        ESP_LOGI(TAG, "Found emotion mapping: %s -> AAF=%d, repeat=%s, fps=%d", 
+                 emotion, aaf, repeat ? "true" : "false", fps);
         engine_->setEyes(aaf, repeat, fps);
+    } else {
+        ESP_LOGW(TAG, "Unknown emotion: %s", emotion);
     }
 }
 
@@ -381,7 +426,7 @@ void EmoteDisplay::SetStatus(const char* status)
 
     if (std::strcmp(status, "聆听中...") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_ANIM_TOP);
-        engine_->setEyes(MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF, true, 20);
+        engine_->setEyes(MMAP_EMOJI_NORMAL_HAPPY_AAF, true, 20);
         engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_MIC_BIN);
     } else if (std::strcmp(status, "待命") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIME);
