@@ -108,3 +108,23 @@ curl -F file=@build/assets/assets_A.bin http://localhost:8080/api/upload
 # 触发更新
 curl -X POST http://localhost:8080/api/push -H 'Content-Type: application/json' -d '{"url":"http://localhost:8080/assets/assets_A.bin","slot":"A"}'
 ``` 
+
+## 8. 多租户与按客户/按设备更新（重要）
+
+- 资产与版本（建议规范）
+  - 路径：`/assets/{customer_id}/{bundle_version}/assets_A.bin`
+  - 附带清单 `manifest.json`（version/size/sha256/created_at），便于校验与回滚
+- MQTT 主题规范（示例）
+  - 单设备命令：`tenants/{customer_id}/devices/{device_id}/commands`
+  - 客户广播：`tenants/{customer_id}/broadcast/asset_update`
+- 服务端触发
+  - 将 `MQTT_URL` 指向生产 Broker，将 `MQTT_TOPIC` 设为设备订阅的主题（上面两类之一）
+  - 发送 payload：
+```json
+{"type":"asset_update","url":"https://cdn.example.com/assets/acme/2025-08-29/assets_A.bin","slot":"A","version":"2025-08-29","sha256":"<hex>","size":6144000,"customer_id":"acme"}
+```
+- 设备如何知道有更新？
+  - 设备连接 MQTT 后会订阅其专属主题；一旦服务端向该主题发布 `type=asset_update` 消息，设备立即收到并执行：下载→写入 `assets_A`→设置 `asset_slot=A`→重启。
+  - 无需设备端轮询。
+- 设备侧建议增强
+  - NVS 记录 `asset_version`，更新后上报结果：`{"type":"asset_update_result","ok":true,"version":"...","device_id":"..."}` 
