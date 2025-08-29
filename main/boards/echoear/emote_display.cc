@@ -332,26 +332,34 @@ void EmoteDisplay::SetEmotion(const char* emotion)
 
     using EmotionParam = std::tuple<int, bool, int>;
     static const std::unordered_map<std::string, EmotionParam> emotion_map = {
-        {"happy",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"laughing",    {MMAP_EMOJI_NORMAL_ENJOY_ONE_AAF,     true,  20}},
-        {"funny",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"loving",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"embarrassed", {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"confident",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"delicious",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"sad",         {MMAP_EMOJI_NORMAL_SAD_ONE_AAF,       true,  20}},
-        {"crying",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"sleepy",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"silly",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"angry",       {MMAP_EMOJI_NORMAL_ANGRY_ONE_AAF,     true,  20}},
-        {"surprised",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"shocked",     {MMAP_EMOJI_NORMAL_SHOCKED_ONE_AAF,   true,  20}},
-        {"thinking",    {MMAP_EMOJI_NORMAL_THINKING_ONE_AAF,  true,  20}},
-        {"winking",     {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"relaxed",     {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"confused",    {MMAP_EMOJI_NORMAL_DIZZY_ONE_AAF,     true,  20}},
-        {"neutral",     {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
-        {"idle",        {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
+        // 基础情绪 - 使用专门的动画文件
+        {"neutral",     {MMAP_EMOJI_NORMAL_IDLE_AAF,      false, 20}},
+        {"happy",       {MMAP_EMOJI_NORMAL_HAPPY_AAF,     true,  20}},
+        {"laughing",    {MMAP_EMOJI_NORMAL_ENJOY_AAF,     true,  20}},
+        {"funny",       {MMAP_EMOJI_NORMAL_FUNNY_AAF,     true,  20}},
+        {"sad",         {MMAP_EMOJI_NORMAL_SAD_AAF,       true,  20}},
+        {"angry",       {MMAP_EMOJI_NORMAL_ANGRY_AAF,     true,  20}},
+        {"crying",      {MMAP_EMOJI_NORMAL_CRYING_AAF,    true,  20}},
+        {"surprised",   {MMAP_EMOJI_NORMAL_SURPRISED_AAF, true,  20}},
+        {"shocked",     {MMAP_EMOJI_NORMAL_SHOCKED_AAF,   true,  20}},
+        {"thinking",    {MMAP_EMOJI_NORMAL_THINKING_AAF,  true,  20}},
+        {"confused",    {MMAP_EMOJI_NORMAL_CONFUSED_AAF,  true,  20}},
+        {"cool",        {MMAP_EMOJI_NORMAL_COOL_AAF,      true,  20}},
+        {"sleepy",      {MMAP_EMOJI_NORMAL_SLEEPY_AAF,    true,  20}},
+        
+        // 扩展情绪 - 映射到相似的基础情绪
+        {"loving",      {MMAP_EMOJI_NORMAL_HAPPY_AAF,     true,  20}},
+        {"embarrassed", {MMAP_EMOJI_NORMAL_CONFUSED_AAF,  true,  20}},
+        {"confident",   {MMAP_EMOJI_NORMAL_COOL_AAF,      true,  20}},
+        {"delicious",   {MMAP_EMOJI_NORMAL_HAPPY_AAF,     true,  20}},
+        {"winking",     {MMAP_EMOJI_NORMAL_HAPPY_AAF,     true,  20}},
+        {"relaxed",     {MMAP_EMOJI_NORMAL_IDLE_AAF,      true,  20}},
+        {"kissy",       {MMAP_EMOJI_NORMAL_HAPPY_AAF,     true,  20}},
+        {"silly",       {MMAP_EMOJI_NORMAL_SILLY_AAF,     true,  20}},
+        
+        // 别名映射
+        {"idle",        {MMAP_EMOJI_NORMAL_IDLE_AAF,      false, 20}},
+    };
     };
 
     auto it = emotion_map.find(emotion);
@@ -381,7 +389,7 @@ void EmoteDisplay::SetStatus(const char* status)
 
     if (std::strcmp(status, "聆听中...") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_ANIM_TOP);
-        engine_->setEyes(MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF, true, 20);
+        engine_->setEyes(MMAP_EMOJI_NORMAL_HAPPY_AAF, true, 20);
         engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_MIC_BIN);
     } else if (std::strcmp(status, "待命") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIME);
