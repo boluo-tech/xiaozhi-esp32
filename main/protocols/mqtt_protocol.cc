@@ -109,6 +109,27 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
                     CloseAudioChannel();
                 });
             }
+        } else if (strcmp(type->valuestring, "asset_update") == 0) {
+            auto url = cJSON_GetObjectItem(root, "url");
+            if (cJSON_IsString(url)) {
+                Application::GetInstance().Schedule([url_str = std::string(url->valuestring)]() {
+                    extern "C" int asset_ota_download_and_write(const char*, const char*);
+                    extern "C" int asset_ota_set_active_slot(char);
+                    ESP_LOGI(TAG, "Asset OTA start: %s", url_str.c_str());
+                    int rc = asset_ota_download_and_write(url_str.c_str(), "assets_B");
+                    if (rc == 0) {
+                        ESP_LOGI(TAG, "Asset OTA written to assets_B, switching slot and rebooting");
+                        if (asset_ota_set_active_slot('B') == 0) {
+                            vTaskDelay(pdMS_TO_TICKS(500));
+                            esp_restart();
+                        }
+                    } else {
+                        ESP_LOGE(TAG, "Asset OTA failed rc=%d", rc);
+                    }
+                });
+            } else {
+                ESP_LOGE(TAG, "asset_update missing url");
+            }
         } else if (on_incoming_json_ != nullptr) {
             on_incoming_json_(root);
         }
