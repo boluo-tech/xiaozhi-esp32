@@ -396,4 +396,11 @@ spiffs_create_partition_assets(
     MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
     IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
+spiffs_create_partition_assets(
+    assets_B
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
+    IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
+)
 endif()

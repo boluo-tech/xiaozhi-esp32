@@ -83,8 +83,28 @@ static void InitializeAssets(mmap_assets_handle_t* assets_handle)
     // - 将 full_check 关闭，避免校验耦合编译期 checksum
     // - 将 checksum 置 0 以忽略
     // - max_files 仍用当前头文件值（建议未来使用上限+运行时检查）
+
+    // 运行时选择资产分区：从 NVS 读取键 "asset_slot"，值为 "A" 或 "B"，默认 A
+    const char* default_label = "assets_A";
+    char partition_label[16];
+    strncpy(partition_label, default_label, sizeof(partition_label));
+    partition_label[sizeof(partition_label) - 1] = '\0';
+
+    nvs_handle_t nvs;
+    if (nvs_open("sys", NVS_READONLY, &nvs) == ESP_OK) {
+        char slot[2] = {0};
+        size_t len = sizeof(slot);
+        if (nvs_get_str(nvs, "asset_slot", slot, &len) == ESP_OK) {
+            if (slot[0] == 'B' || slot[0] == 'b') {
+                strncpy(partition_label, "assets_B", sizeof(partition_label));
+                partition_label[sizeof(partition_label) - 1] = '\0';
+            }
+        }
+        nvs_close(nvs);
+    }
+
     const mmap_assets_config_t assets_cfg = {
-        .partition_label = "assets_A",
+        .partition_label = partition_label,
         .max_files = MMAP_EMOJI_NORMAL_FILES,
         .checksum = 0,
         .flags = {.mmap_enable = true, .full_check = false}
