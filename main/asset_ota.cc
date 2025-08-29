@@ -49,7 +49,7 @@ int asset_ota_download_and_write(const char* url, const char* partition_label)
         ESP_LOGE(TAG, "partition %s not found", partition_label);
         return -2;
     }
-    ESP_LOGI(TAG, "write to %s offset=0x%lx size=%u", partition_label, part->address, part->size);
+    ESP_LOGI(TAG, "write to %s offset=0x%lx size=%lu", partition_label, (unsigned long)part->address, (unsigned long)part->size);
 
     esp_http_client_config_t cfg = { .url = url, .timeout_ms = 15000 };
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
@@ -62,7 +62,7 @@ int asset_ota_download_and_write(const char* url, const char* partition_label)
     }
 
     int64_t content_len = esp_http_client_fetch_headers(client);
-    if (content_len <= 0 || content_len > part->size) {
+    if (content_len <= 0 || (uint64_t)content_len > part->size) {
         ESP_LOGE(TAG, "invalid content length: %lld", (long long)content_len);
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
