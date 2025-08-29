@@ -10,6 +10,8 @@
 #include <freertos/task.h>
 #include <sys/time.h>
 #include <time.h>
+#include <nvs.h>
+#include <nvs_flash.h>
 
 #include "display/lcd_display.h"
 #include "mmap_generate_emoji_normal.h"
