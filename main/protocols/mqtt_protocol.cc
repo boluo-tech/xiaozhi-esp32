@@ -2,6 +2,7 @@
 #include "board.h"
 #include "application.h"
 #include "settings.h"
+#include "asset_ota.h"
 
 #include <esp_log.h>
 #include <cstring>
@@ -118,8 +119,6 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
                     slot_ch = (slot->valuestring[0] == 'A' || slot->valuestring[0] == 'a') ? 'A' : 'B';
                 }
                 Application::GetInstance().Schedule([url_str = std::string(url->valuestring), slot_ch]() {
-                    extern "C" int asset_ota_download_and_write(const char*, const char*);
-                    extern "C" int asset_ota_set_active_slot(char);
                     const char* target_partition = (slot_ch == 'A') ? "assets_A" : "assets_B";
                     ESP_LOGI(TAG, "Asset OTA start: %s -> %s", url_str.c_str(), target_partition);
                     int rc = asset_ota_download_and_write(url_str.c_str(), target_partition);
