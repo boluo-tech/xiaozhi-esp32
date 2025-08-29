@@ -9,6 +9,9 @@
 # 4. 编译
 # 5. 合并固件
 # 6. 烧录固件
+# gif 表情转化为aff: 执行scripts/optimize_emotions.sh
+# OPTIMIZED_DIR="scripts/xiaohei_aaf_optimized"
+# OFFICIAL_DIR="managed_components/espressif2022__esp_emote_gfx/emoji_normal"
 # ===================================
 
 # 默认配置
@@ -175,7 +178,7 @@ fi
 # ===================================
 if [ $do_merge -eq 1 ]; then
     print_info "Step 6: Merging firmware into single bin file..."
-    esptool.py --chip esp32p4 merge_bin --output xiaozhi_merged.bin --flash_mode dio --flash_size 32MB 0x2000 build/bootloader/bootloader.bin 0x8000 build/partition_table/partition-table.bin 0x10d000 build/ota_data_initial.bin 0x110000 build/srmodels/srmodels.bin 0x200000 build/xiaozhi.bin
+    esptool.py --chip esp32s3 merge_bin --output xiaozhi_merged.bin --flash_mode dio --flash_size 32MB 0x2000 build/bootloader/bootloader.bin 0x8000 build/partition_table/partition-table.bin 0x10d000 build/ota_data_initial.bin 0x110000 build/srmodels/srmodels.bin 0x200000 build/xiaozhi.bin
     if [ $? -ne 0 ]; then
         print_error "Merge firmware failed!"
         exit 1
