@@ -111,15 +111,21 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
             }
         } else if (strcmp(type->valuestring, "asset_update") == 0) {
             auto url = cJSON_GetObjectItem(root, "url");
+            auto slot = cJSON_GetObjectItem(root, "slot");
             if (cJSON_IsString(url)) {
-                Application::GetInstance().Schedule([url_str = std::string(url->valuestring)]() {
+                char slot_ch = 'B';
+                if (cJSON_IsString(slot) && (slot->valuestring[0] == 'A' || slot->valuestring[0] == 'a' || slot->valuestring[0] == 'B' || slot->valuestring[0] == 'b')) {
+                    slot_ch = (slot->valuestring[0] == 'A' || slot->valuestring[0] == 'a') ? 'A' : 'B';
+                }
+                Application::GetInstance().Schedule([url_str = std::string(url->valuestring), slot_ch]() {
                     extern "C" int asset_ota_download_and_write(const char*, const char*);
                     extern "C" int asset_ota_set_active_slot(char);
-                    ESP_LOGI(TAG, "Asset OTA start: %s", url_str.c_str());
-                    int rc = asset_ota_download_and_write(url_str.c_str(), "assets_B");
+                    const char* target_partition = (slot_ch == 'A') ? "assets_A" : "assets_B";
+                    ESP_LOGI(TAG, "Asset OTA start: %s -> %s", url_str.c_str(), target_partition);
+                    int rc = asset_ota_download_and_write(url_str.c_str(), target_partition);
                     if (rc == 0) {
-                        ESP_LOGI(TAG, "Asset OTA written to assets_B, switching slot and rebooting");
-                        if (asset_ota_set_active_slot('B') == 0) {
+                        ESP_LOGI(TAG, "Asset OTA written to %s, switching slot and rebooting", target_partition);
+                        if (asset_ota_set_active_slot(slot_ch) == 0) {
                             vTaskDelay(pdMS_TO_TICKS(500));
                             esp_restart();
                         }
