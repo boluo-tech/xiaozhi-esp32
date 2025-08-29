@@ -9,6 +9,7 @@
 # 4. 编译
 # 5. 合并固件
 # 6. 烧录固件
+# 7. 仅生成资产镜像（assets_A/B.bin）
 # gif 表情转化为aff: 执行scripts/optimize_emotions.sh
 # OPTIMIZED_DIR="scripts/xiaohei_aaf_optimized"
 # OFFICIAL_DIR="managed_components/espressif2022__esp_emote_gfx/emoji_normal"
@@ -25,8 +26,14 @@ do_build=1         # 1表示编译
 do_merge=1         # 1表示合并固件
 do_flash=0         # 1表示烧录固件
 
+# 资产镜像选项（不依赖编译应用）
+do_assets=0        # 1表示仅生成资产镜像（assets_{A|B}.bin）
+assets_label="A"   # A 或 B
+assets_dir="managed_components/espressif2022__esp_emote_gfx/emoji_normal"
+assets_out="build/assets"
+
 # 解析命令行参数
-while getopts "t:c:o:l:b:m:f:" opt; do
+while getopts "t:c:o:l:b:m:f:a" opt; do
   case $opt in
     t)
       if [ "$OPTARG" = "test" ]; then
@@ -55,6 +62,10 @@ while getopts "t:c:o:l:b:m:f:" opt; do
     f)
       do_flash=$OPTARG
       ;;
+    a)
+      # 进入交互式资产生成模式，读取环境变量以允许定制
+      do_assets=1
+      ;;
     \?)
       echo "使用方法: $0 [选项]"
       echo "选项:"
@@ -65,8 +76,10 @@ while getopts "t:c:o:l:b:m:f:" opt; do
       echo "  -b <0|1>              是否编译 (默认: 1)"
       echo "  -m <0|1>              是否合并固件 (默认: 1)"
       echo "  -f <0|1>              是否烧录固件 (默认: 0)"
+      echo "  -a                   仅生成资产镜像（配合环境变量 ASSETS_LABEL/ASSETS_DIR/ASSETS_OUT）"
       echo ""
       echo "示例:"
+      echo "  ASSETS_LABEL=B ASSETS_DIR=managed_components/espressif2022__esp_emote_gfx/emoji_normal ASSETS_OUT=build/assets $0 -a"
       echo "  $0 -t test -f 1        # 使用测试环境OTA并烧录"
       echo "  $0 -t prod -m 1        # 使用生产环境OTA并合并固件"
       echo "  $0 -b 1 -m 1           # 只编译和合并固件"
@@ -74,6 +87,11 @@ while getopts "t:c:o:l:b:m:f:" opt; do
       ;;
   esac
 done
+
+# 环境变量覆盖资产参数
+if [ -n "${ASSETS_LABEL:-}" ]; then assets_label="$ASSETS_LABEL"; fi
+if [ -n "${ASSETS_DIR:-}" ]; then assets_dir="$ASSETS_DIR"; fi
+if [ -n "${ASSETS_OUT:-}" ]; then assets_out="$ASSETS_OUT"; fi
 
 # 设置颜色输出
 GREEN='\033[0;32m'
@@ -89,11 +107,28 @@ print_error() {
     echo -e "${RED}[ERROR] $1${NC}"
 }
 
+# 如果仅生成资产镜像，直接调用脚本并退出
+if [ $do_assets -eq 1 ]; then
+    print_info "Assets Only 模式: 生成 assets_${assets_label}.bin"
+    if [ -z "$IDF_PATH" ]; then
+        print_error "IDF_PATH 环境变量未设置，请先运行 source $IDF_PATH/export.sh"
+        exit 1
+    fi
+    source $IDF_PATH/export.sh
+    bash scripts/make_assets_spiffs.sh "$assets_dir" "$assets_out" "$assets_label"
+    if [ $? -ne 0 ]; then
+        print_error "生成资产镜像失败"
+        exit 1
+    fi
+    print_info "资产镜像已生成: $assets_out/assets_${assets_label}.bin"
+    exit 0
+fi
+
  
 # 激活ESP-IDF环境
 # ===================================
 if [ -z "$IDF_PATH" ]; then
-    print_error "IDF_PATH 环境变量未设置，请先运行 source \$IDF_PATH/export.sh"
+    print_error "IDF_PATH 环境变量未设置，请先运行 source $IDF_PATH/export.sh"
     exit 1
 fi
 
