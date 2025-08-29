@@ -79,11 +79,15 @@ static void clock_tm_callback(void* user_data)
 
 static void InitializeAssets(mmap_assets_handle_t* assets_handle)
 {
+    // 放宽校验以支持“仅更新资产镜像”热更新：
+    // - 将 full_check 关闭，避免校验耦合编译期 checksum
+    // - 将 checksum 置 0 以忽略
+    // - max_files 仍用当前头文件值（建议未来使用上限+运行时检查）
     const mmap_assets_config_t assets_cfg = {
         .partition_label = "assets_A",
         .max_files = MMAP_EMOJI_NORMAL_FILES,
-        .checksum = MMAP_EMOJI_NORMAL_CHECKSUM,
-        .flags = {.mmap_enable = true, .full_check = true}
+        .checksum = 0,
+        .flags = {.mmap_enable = true, .full_check = false}
     };
 
     mmap_assets_new(&assets_cfg, assets_handle);
